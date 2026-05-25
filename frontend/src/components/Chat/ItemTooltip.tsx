@@ -225,7 +225,7 @@ export function AreaLink({ name, info }: { name: string; info: string }) {
             <div className="bg-d2-surface border border-d2-border rounded-md p-2.5 max-w-80 shadow-lg z-[9999]">
               <div className="text-xs font-d2 text-d2-accent mb-1">{name}</div>
               <div className="text-xs text-d2-ink font-body leading-relaxed">
-                {info.split('|').map((line, i) => (
+                {info.split('\u00b7').map((line, i) => (
                   <div key={i} className="py-0.5">{line.trim()}</div>
                 ))}
               </div>

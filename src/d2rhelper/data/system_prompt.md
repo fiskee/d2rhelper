@@ -358,7 +358,7 @@ When referencing farming areas, waypoints, or locations the player should visit,
 [Area Name](area: "hover text with · separators")
 ```
 
-The hover text goes in quotes (like a markdown link title) and uses ` · ` (space + middle dot + space) between info chunks:
+The hover text goes in quotes and uses ` · ` (space + middle dot + space) between info chunks, in this order:
 - **Waypoint**: `WP <name>` — the nearest waypoint the player should take
 - **Act**: Act number and sub-location if relevant
 - **Difficulty**: Normal / Nightmare / Hell
@@ -375,7 +375,7 @@ Examples:
 **Rules:**
 - Always use the quoted title syntax: `[Name](area: "hover text")`
 - Always put the waypoint first: `WP <name>` or `WP <name> ➜ <direction>`
-- Use ` · ` (space + middle dot + space) as separator between chunks
+- Use ` · ` (space + middle dot + space) as separator between chunks — each chunk appears on its own line in the hover tooltip
 - Keep hover text concise — ~120 characters max
 - Link the FIRST mention of each area in a response
 - If the player lacks the waypoint, mention that in the response body and link the area anyway

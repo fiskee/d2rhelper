@@ -1,5 +1,7 @@
 # d2rhelper
 
+This is a personal project, testing open source LLMs, feel free to use and do whatever you want, I did not write a single line of code.
+
 Parse and explore your Diablo II: Resurrected offline save files.
 
 Browse character gear, search items across all characters and stash, track set item completion, and chat with an AI assistant about builds and farming strategies.
@@ -26,12 +28,12 @@ Open **http://127.0.0.1:8000** in your browser.
 
 ## Features
 
-- **Dashboard** — character stats, 12-slot equipment grid, mercenary gear, inventory, belt, personal stash, and shared stash tabs
-- **Search** — instant item search with word-boundary ranking, autocomplete suggestions, and an option to search across all loaded characters
-- **Sets** — track set item completion across all characters and stash, see which pieces you own and where they are (equipped, inventory, personal stash, shared stash)
-- **Chat** — AI assistant powered by Gemini that knows your characters, items, and stash. Ask about builds, farming strategies, runewords, and gear upgrades. Toggle to include all characters in a single chat session
-- **Multiple characters** — switch between characters, search or compare across all loaded saves
-- **Session persistence** — your selected character, search queries, chat history, and view state survive page reloads
+- **Dashboard** - character stats, 12-slot equipment grid, mercenary gear, inventory, belt, personal stash, and shared stash tabs
+- **Search** - instant item search with word-boundary ranking, autocomplete suggestions, and an option to search across all loaded characters
+- **Sets** - track set item completion across all characters and stash, see which pieces you own and where they are (equipped, inventory, personal stash, shared stash)
+- **Chat** - AI assistant powered by Gemini that knows your characters, items, and stash. Ask about builds, farming strategies, runewords, and gear upgrades. Toggle to include all characters in a single chat session
+- **Multiple characters** - switch between characters, search or compare across all loaded saves
+- **Session persistence** - your selected character, search queries, chat history, and view state survive page reloads
 
 ## Credits
 

@@ -1,6 +1,6 @@
 # d2rhelper
 
-Parse Diablo II: Resurrected offline save files and generate LLM-ready character context.
+Parse Diablo II: Resurrected offline save files. Features a React web frontend with instant item search across character/stash, equipment dashboard, and a streaming Gemini chat assistant.
 
 Inspired by [d2rsavegameparser](https://github.com/Paladijn/d2rsavegameparser/). CASC extraction powered by [CascLib](https://github.com/ladislav-zezula/CascLib).
 
@@ -60,25 +60,58 @@ If you need to rebuild the database after a game update, re-run the extraction s
 
 ## Development Commands
 
-Run lint checks:
+Backend lint:
 
 ```bash
 uv run ruff check src tests
 ```
 
-Run tests:
+Backend tests:
 
 ```bash
 uv run pytest -q
 ```
 
-Run both in one go:
+Frontend setup:
 
 ```bash
-uv run ruff check src tests && uv run pytest -q
+cd frontend && npm install
 ```
 
+Frontend typecheck and build:
+
+```bash
+cd frontend && npm run build
+```
+
+## Launch the full app
+
+Start the API server (serves the React frontend if built, or API-only for dev):
+
+```bash
+cp .env.example .env
+# Edit .env to add your GEMINI_API_KEY (required for chat)
+
+uv run d2rhelper serve
+```
+
+Opens at `http://127.0.0.1:8000`. Click **Load Character** to auto-detect your save file, or expand **Manual path...** to specify one.
+
+For development with hot-reload on both sides:
+
+```bash
+# Terminal 1 — API server
+uv run d2rhelper serve --reload
+
+# Terminal 2 — Vite dev server (proxies /api to the backend)
+cd frontend && npm run dev
+```
+
+The Vite dev server runs on `http://localhost:5173`.
+
 ## Architecture
+
+### Backend (Python)
 
 Game data is stored in a SQLite database (`src/d2rhelper/data/game.db`) built at extraction time. All lookups - skills, items, runewords, properties, player classes - go through `GameData` in `src/d2rhelper/game_data.py`.
 
@@ -89,12 +122,27 @@ The item parsing pipeline is split into focused components:
 - `src/d2rhelper/item_properties.py` - item property decoding/formatting/combining
 - `src/d2rhelper/item_rules.py` - item metadata rules (requirements, names, damage, runewords)
 
-Character and stash parsing entry points remain:
+Character and stash parsing entry points:
 
 - `src/d2rhelper/parser.py` - `.d2s` character parsing
 - `src/d2rhelper/shared_stash_parser.py` - `.d2i` shared stash parsing
 
-## Parse a character save
+API server (FastAPI):
+
+- `src/d2rhelper/api.py` - REST + WebSocket endpoints
+- `src/d2rhelper/cli.py` - CLI with `serve` subcommand
+
+### Frontend (React + Vite + TypeScript + Tailwind CSS v4)
+
+Located in `frontend/`. State management via Zustand.
+
+- **Dashboard** — character info, 12-slot equipment grid, mercenary grid, inventory, stash tabs
+- **Search** — instant client-side search across all items with word-boundary ranking, filter suggestions from your actual items, responsive card grid layout
+- **Chat** — WebSocket streaming Gemini chat with markdown rendering, auto-loads character context
+
+## CLI Commands
+
+### Parse a character save
 
 ```bash
 uv run d2rhelper parse-character "/path/to/Character.d2s" --db d2rhelper.db --json
@@ -102,33 +150,27 @@ uv run d2rhelper parse-character "/path/to/Character.d2s" --db d2rhelper.db --js
 
 This creates an immutable snapshot row in SQLite and stores the normalized character payload.
 
-## Parse a shared stash file
+### Parse a shared stash file
 
 ```bash
 uv run d2rhelper parse-stash "/path/to/SharedStashSoftCoreV2.d2i" --json
 ```
 
-## Launch a local character UI
+### Legacy character UI (Python HTTP server)
 
 ```bash
 uv run d2rhelper ui
 ```
 
-This auto-detects your latest local `.d2s` in Steam/Proton and serves a web UI at `http://127.0.0.1:8765`.
+Serves a simple HTML character viewer at `http://127.0.0.1:8765`.
 
-Or specify a file:
-
-```bash
-uv run d2rhelper ui --file "/path/to/Character.d2s"
-```
-
-## Generate LLM context JSON
+### Generate LLM context JSON
 
 ```bash
 uv run d2rhelper llm-json -o d2r_context.json
 ```
 
-## Generate the full system prompt (for external LLM chat)
+### Generate the full system prompt (for external LLM chat)
 
 ```bash
 uv run d2rhelper prompt -o system_prompt.txt
@@ -136,12 +178,10 @@ uv run d2rhelper prompt -o system_prompt.txt
 
 Paste the output as the system message in your platform of choice to get grounded, inventory-aware D2R advice.
 
-## Chat directly with Gemini Flash 3.5
+### Terminal chat (Gemini)
 
 ```bash
-cp .env.example .env
-# Edit .env to add your GEMINI_API_KEY (and optionally GEMINI_MODEL)
 uv run d2rhelper chat
 ```
 
-This starts an interactive chat with Gemini Flash 3.5 by default, pre-loaded with your character context. Set `GEMINI_MODEL` to override the model. Type `quit` to exit, `clear` to reset the conversation.
+Interactive terminal chat with Gemini, pre-loaded with your character context. Type `quit` to exit, `clear` to reset.

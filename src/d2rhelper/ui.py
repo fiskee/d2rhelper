@@ -367,7 +367,6 @@ def render_character_page(
         <div><b>Class</b>: {character.character_type}</div>
         <div><b>Version</b>: {character.file_data.version}</div>
         <div><b>Hardcore</b>: {character.status.hardcore}</div>
-        <div><b>Died</b>: {character.status.died}</div>
         <div><b>LoD</b>: {character.status.lord_of_destruction}</div>
         <div><b>RotW</b>: {character.status.reign_of_the_warlock}</div>
         <div><b>Act Progression</b>: {character.act_progression}</div>

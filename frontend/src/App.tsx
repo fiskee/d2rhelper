@@ -1,0 +1,25 @@
+import { useAppStore } from './store/appStore'
+import { AppShell } from './components/Layout/AppShell'
+import { Dashboard } from './components/Dashboard/Dashboard'
+import { SearchView } from './components/Search/SearchView'
+import { ChatPanel } from './components/Chat/ChatPanel'
+
+function App() {
+  const { view, character, stashTabs } = useAppStore()
+
+  return (
+    <AppShell>
+      {view === 'dashboard' && character && (
+        <Dashboard character={character} stashTabs={stashTabs} />
+      )}
+      {view === 'search' && <SearchView />}
+      {view === 'chat' && (
+        <div className="h-[calc(100vh-3rem)]">
+          <ChatPanel />
+        </div>
+      )}
+    </AppShell>
+  )
+}
+
+export default App

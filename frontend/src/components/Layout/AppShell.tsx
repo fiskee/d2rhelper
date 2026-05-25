@@ -1,0 +1,83 @@
+import type { ReactNode } from 'react'
+import { useAppStore } from '../../store/appStore'
+import { FileUpload } from './FileUpload'
+
+type View = 'dashboard' | 'search' | 'chat'
+
+const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
+  { view: 'dashboard', label: 'Dashboard', icon: '◆' },
+  { view: 'search', label: 'Search', icon: '⌕' },
+  { view: 'chat', label: 'Chat', icon: '💬' },
+]
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { view, setView, character, loading, error } = useAppStore()
+
+  return (
+    <div className="flex h-screen bg-d2-bg">
+      <aside className="w-64 bg-d2-surface border-r border-d2-border flex flex-col shrink-0">
+        <div className="px-4 py-4 border-b border-d2-border">
+          <h1 className="text-xl font-d2 font-bold text-d2-accent tracking-wide">D2R Helper</h1>
+          <p className="text-[10px] text-d2-muted font-body mt-0.5">Diablo II: Resurrected</p>
+        </div>
+
+        <div className="p-3 border-b border-d2-border">
+          <FileUpload />
+        </div>
+
+        {error && (
+          <div className="px-3 py-2 bg-red-900/20 border-b border-red-800/30 text-xs text-red-400 font-body">
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="px-3 py-2 bg-d2-accent/10 border-b border-d2-accent/20 text-xs text-d2-accent font-body">
+            Parsing...
+          </div>
+        )}
+
+        <nav className="p-3 flex flex-col gap-1">
+          {NAV_ITEMS.map(({ view: v, label, icon }) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              disabled={!character}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer
+                disabled:opacity-30 disabled:cursor-not-allowed font-body
+                ${view === v
+                  ? 'bg-d2-accent/20 text-d2-accent'
+                  : 'text-d2-muted hover:text-d2-ink hover:bg-d2-bg'
+                }`}
+            >
+              <span className="w-5 text-center">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {character && (
+          <div className="mt-auto p-3 border-t border-d2-border">
+            <div className="text-xs text-d2-muted font-body truncate">{character.name} — Lvl {character.level}</div>
+          </div>
+        )}
+      </aside>
+
+      <main className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="p-6 max-w-6xl mx-auto">
+          {!character ? (
+            <div className="flex items-center justify-center h-full min-h-[60vh]">
+              <div className="text-center text-d2-muted font-body">
+                <div className="text-5xl mb-4">&#9876;</div>
+                <p className="text-lg font-d2 text-d2-accent">D2R Helper</p>
+                <p className="text-sm mt-2">Drop a character file path to get started</p>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
+        </div>
+      </main>
+    </div>
+  )
+}

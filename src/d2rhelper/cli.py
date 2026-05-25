@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+from pathlib import Path
 
 from d2rhelper.db import persist_character_snapshot
 from d2rhelper.llm_context import generate_llm_json
@@ -42,6 +44,11 @@ def main() -> None:
     chat_parser.add_argument("--file", help="Path to .d2s file (auto-detect if omitted)")
     chat_parser.add_argument("--stash", help="Path to .d2i file (auto-detect if omitted)")
 
+    serve_parser = sub.add_parser("serve")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+
     args = parser.parse_args()
 
     def _resolve_character_file(path_arg: str | None) -> str:
@@ -81,8 +88,6 @@ def main() -> None:
         if not args.output:
             print(output)
     elif args.command == "prompt":
-        from pathlib import Path
-
         char_file = _resolve_character_file(args.file)
         stash_file = args.stash
         if stash_file is None:
@@ -106,3 +111,22 @@ def main() -> None:
             stash_file = str(detected) if detected else None
         context = generate_llm_json(char_file, stash_file)
         start_chat(context)
+    elif args.command == "serve":
+        import uvicorn
+        from fastapi.staticfiles import StaticFiles
+
+        from d2rhelper.api import app
+
+        host = os.environ.get("D2RHELPER_HOST", args.host)
+        port = int(os.environ.get("D2RHELPER_PORT", str(args.port)))
+        frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+
+        if frontend_dist.exists():
+            app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+            print(f"Serving frontend from {frontend_dist}")
+            print(f"API + Frontend running at http://{host}:{port}")
+        else:
+            print("Frontend not built (run `cd frontend && npm run build` first)")
+            print(f"API only running at http://{host}:{port}")
+
+        uvicorn.run(app, host=host, port=port, reload=args.reload)

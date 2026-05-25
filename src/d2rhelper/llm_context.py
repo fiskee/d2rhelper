@@ -51,7 +51,6 @@ def build_llm_context(
         "personal_stash": [_compact_item(it) for it in personal_stash],
         "mercenary": {
             "type_id": character.mercenary.type_id,
-            "alive": bool(character.mercenary.alive_flag),
             "equipment": [_compact_item(it) for it in character.mercenary.items],
         },
         "shared_stash": [

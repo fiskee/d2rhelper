@@ -1,6 +1,9 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { get, set, del } from 'idb-keyval'
+import type { StateStorage } from 'zustand/middleware'
 import { parseCharacter, listCharacters } from '../api/client'
-import type { ChatMessage, CharacterInfo, D2Character, ParsedItem, SharedStashTab } from '../types'
+import type { Chat, ChatMessage, CharacterInfo, D2Character, ParsedItem, SharedStashTab } from '../types'
 
 type View = 'dashboard' | 'search' | 'chat'
 
@@ -43,6 +46,22 @@ function deriveAllItems(
   return result
 }
 
+function makeChat(state: {
+  activeCharacterPath: string | null
+  character: D2Character | null
+}): Chat {
+  return {
+    id: crypto.randomUUID(),
+    title: 'New Chat',
+    messages: [],
+    characterPath: state.activeCharacterPath,
+    characterType: state.character?.character_type ?? null,
+    characterName: state.character?.name ?? null,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+}
+
 interface AppState {
   view: View
   setView: (v: View) => void
@@ -71,113 +90,215 @@ interface AppState {
   searchQuery: string
   setSearchQuery: (q: string) => void
 
-  chatMessages: ChatMessage[]
+  chats: Chat[]
+  activeChatId: string | null
   chatStreaming: boolean
-  addChatMessage: (msg: ChatMessage) => void
+  includeAllCharactersInChat: boolean
+  createChat: () => void
+  deleteChat: (id: string) => void
+  setActiveChat: (id: string) => void
+  addMessageToChat: (chatId: string, msg: ChatMessage) => void
   setChatStreaming: (s: boolean) => void
-  clearChat: () => void
+  setIncludeAllCharactersInChat: (v: boolean) => void
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
-  view: 'dashboard',
-  setView: (view) => set({ view }),
-
-  characters: [],
-  stashPath: null,
-  characterCache: {},
-  stashTabs: [],
-  activeCharacterPath: null,
-
-  character: null,
-  allItems: [],
-
-  loading: false,
-  error: null,
-
-  searchAllCharacters: false,
-
-  fetchCharacters: async () => {
-    set({ loading: true, error: null })
-    try {
-      const data = await listCharacters()
-      set({
-        characters: data.characters,
-        stashPath: data.stash_path ?? get().stashPath,
-        loading: false,
-      })
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Failed to list characters', loading: false })
-    }
+const idbStorage: StateStorage = {
+  getItem: async (name: string) => {
+    const value = await get(name)
+    return value ?? null
   },
-
-  parseAndSetActive: async (path, overrideStashPath) => {
-    const state = get()
-    if (state.characterCache[path] && state.activeCharacterPath === path) {
-      return
-    }
-
-    if (state.characterCache[path]) {
-      const character = state.characterCache[path]
-      const allItems = deriveAllItems(state.characterCache, state.stashTabs, path, state.searchAllCharacters)
-      set({ activeCharacterPath: path, character, allItems, loading: false, error: null })
-      return
-    }
-
-    set({ loading: true, error: null })
-    try {
-      const sp = overrideStashPath ?? get().stashPath
-      const result = await parseCharacter(path, sp ?? undefined)
-      const character = result.character
-      const tabs = result.stash_tabs
-      const newCache = { ...get().characterCache, [path]: character }
-      const useTabs = get().stashTabs.length > 0 ? get().stashTabs : tabs
-      const allItems = deriveAllItems(newCache, useTabs, path, get().searchAllCharacters)
-      set({
-        characterCache: newCache,
-        stashTabs: useTabs,
-        activeCharacterPath: path,
-        character,
-        allItems,
-        loading: false,
-        error: null,
-      })
-    } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Parse failed', loading: false })
-    }
+  setItem: async (name: string, value: string) => {
+    await set(name, value)
   },
-
-  setActiveCharacterPath: (path) => {
-    const state = get()
-    if (!path) {
-      set({ activeCharacterPath: null, character: null, allItems: [], error: null })
-      return
-    }
-    const character = state.characterCache[path] ?? null
-    const allItems = deriveAllItems(state.characterCache, state.stashTabs, path, state.searchAllCharacters)
-    set({ activeCharacterPath: path, character, allItems, error: null })
+  removeItem: async (name: string) => {
+    await del(name)
   },
+}
 
-  setSearchAllCharacters: (searchAllCharacters) => {
-    const state = get()
-    const allItems = deriveAllItems(
-      state.characterCache,
-      state.stashTabs,
-      state.activeCharacterPath,
-      searchAllCharacters,
-    )
-    set({ searchAllCharacters, allItems })
-  },
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      view: 'dashboard',
+      setView: (view) => set({ view }),
 
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
+      characters: [],
+      stashPath: null,
+      characterCache: {},
+      stashTabs: [],
+      activeCharacterPath: null,
 
-  searchQuery: '',
-  setSearchQuery: (searchQuery) => set({ searchQuery }),
+      character: null,
+      allItems: [],
 
-  chatMessages: [],
-  chatStreaming: false,
-  addChatMessage: (msg) =>
-    set((s) => ({ chatMessages: [...s.chatMessages, msg] })),
-  setChatStreaming: (chatStreaming) => set({ chatStreaming }),
-  clearChat: () => set({ chatMessages: [] }),
-}))
+      loading: false,
+      error: null,
+
+      searchAllCharacters: false,
+
+      fetchCharacters: async () => {
+        set({ loading: true, error: null })
+        try {
+          const data = await listCharacters()
+          set({
+            characters: data.characters.length > 0 ? data.characters : get().characters,
+            stashPath: data.stash_path ?? get().stashPath,
+            loading: false,
+          })
+        } catch (err) {
+          set({ error: err instanceof Error ? err.message : 'Failed to list characters', loading: false })
+        }
+      },
+
+      parseAndSetActive: async (path, overrideStashPath) => {
+        const state = get()
+        if (state.characterCache[path] && state.activeCharacterPath === path) {
+          return
+        }
+
+        if (state.characterCache[path]) {
+          const character = state.characterCache[path]
+          const allItems = deriveAllItems(state.characterCache, state.stashTabs, path, state.searchAllCharacters)
+          set({ activeCharacterPath: path, character, allItems, loading: false, error: null })
+          return
+        }
+
+        set({ loading: true, error: null })
+        try {
+          const sp = overrideStashPath ?? get().stashPath
+          const result = await parseCharacter(path, sp ?? undefined)
+          const character = result.character
+          const tabs = result.stash_tabs
+          const newCache = { ...get().characterCache, [path]: character }
+          const useTabs = get().stashTabs.length > 0 ? get().stashTabs : tabs
+          const allItems = deriveAllItems(newCache, useTabs, path, get().searchAllCharacters)
+          set({
+            characterCache: newCache,
+            stashTabs: useTabs,
+            activeCharacterPath: path,
+            character,
+            allItems,
+            loading: false,
+            error: null,
+          })
+        } catch (err) {
+          set({ error: err instanceof Error ? err.message : 'Parse failed', loading: false })
+        }
+      },
+
+      setActiveCharacterPath: (path) => {
+        const state = get()
+        if (!path) {
+          set({ activeCharacterPath: null, character: null, allItems: [], error: null })
+          return
+        }
+        const character = state.characterCache[path] ?? null
+        const allItems = deriveAllItems(state.characterCache, state.stashTabs, path, state.searchAllCharacters)
+        set({ activeCharacterPath: path, character, allItems, error: null })
+      },
+
+      setSearchAllCharacters: (searchAllCharacters) => {
+        const state = get()
+        const allItems = deriveAllItems(
+          state.characterCache,
+          state.stashTabs,
+          state.activeCharacterPath,
+          searchAllCharacters,
+        )
+        set({ searchAllCharacters, allItems })
+      },
+
+      setLoading: (loading) => set({ loading }),
+      setError: (error) => set({ error }),
+
+      searchQuery: '',
+      setSearchQuery: (searchQuery) => set({ searchQuery }),
+
+      chats: [],
+      activeChatId: null,
+      chatStreaming: false,
+      includeAllCharactersInChat: false,
+
+      createChat: () => {
+        const chat = makeChat(get())
+        set((s) => {
+          let chats = s.chats
+          if (s.activeChatId) {
+            const current = chats.find((c) => c.id === s.activeChatId)
+            if (current && current.messages.length === 0) {
+              chats = chats.filter((c) => c.id !== current.id)
+            }
+          }
+          return { chats: [...chats, chat], activeChatId: chat.id }
+        })
+      },
+
+      deleteChat: (id) => {
+        set((s) => {
+          const chats = s.chats.filter((c) => c.id !== id)
+          const activeChatId = s.activeChatId === id
+            ? (chats.length > 0 ? chats[chats.length - 1].id : null)
+            : s.activeChatId
+          return { chats, activeChatId }
+        })
+      },
+
+      setActiveChat: (id) => {
+        set((s) => {
+          let chats = s.chats
+          const currentId = s.activeChatId
+          if (currentId && currentId !== id) {
+            const current = chats.find((c) => c.id === currentId)
+            if (current && current.messages.length === 0) {
+              chats = chats.filter((c) => c.id !== currentId)
+            }
+          }
+          return { chats, activeChatId: id }
+        })
+      },
+
+      addMessageToChat: (chatId, msg) =>
+        set((s) => ({
+          chats: s.chats.map((c) => {
+            if (c.id !== chatId) return c
+            const isFirstUserMessage = c.messages.length === 0 && msg.role === 'user'
+            return {
+              ...c,
+              title: isFirstUserMessage
+                ? (msg.content.length > 40 ? msg.content.slice(0, 40) + '...' : msg.content)
+                : c.title,
+              messages: [...c.messages, msg],
+              updatedAt: Date.now(),
+            }
+          }),
+        })),
+
+      setChatStreaming: (chatStreaming) => set({ chatStreaming }),
+
+      setIncludeAllCharactersInChat: (includeAllCharactersInChat) => set({ includeAllCharactersInChat }),
+    }),
+    {
+      name: 'd2rhelper-chat-storage',
+      storage: createJSONStorage(() => idbStorage),
+      partialize: (state) => {
+        const nonEmptyChats = state.chats.filter((c) => c.messages.length > 0)
+        const activeId = nonEmptyChats.some((c) => c.id === state.activeChatId)
+          ? state.activeChatId
+          : (nonEmptyChats.length > 0 ? nonEmptyChats[nonEmptyChats.length - 1].id : null)
+        return {
+          chats: nonEmptyChats,
+          activeChatId: activeId,
+          activeCharacterPath: state.activeCharacterPath,
+          character: state.character,
+          characterCache: state.characterCache,
+          stashTabs: state.stashTabs,
+          stashPath: state.stashPath,
+          characters: state.characters,
+          view: state.view,
+          searchQuery: state.searchQuery,
+          searchAllCharacters: state.searchAllCharacters,
+          includeAllCharactersInChat: state.includeAllCharactersInChat,
+        }
+      },
+    },
+  ),
+)

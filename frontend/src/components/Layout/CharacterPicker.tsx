@@ -49,7 +49,7 @@ export function CharacterPicker() {
             className="text-[10px] text-d2-accent hover:text-d2-accent-hover transition-colors
                        cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed font-body"
           >
-            {detecting ? 'Detecting...' : 'Auto-detect'}
+            {detecting ? 'Detecting...' : 'Refresh'}
           </button>
         </div>
 

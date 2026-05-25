@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useAppStore } from './store/appStore'
 import { AppShell } from './components/Layout/AppShell'
 import { Dashboard } from './components/Dashboard/Dashboard'
@@ -6,6 +7,31 @@ import { ChatPanel } from './components/Chat/ChatPanel'
 
 function App() {
   const { view, character, stashTabs } = useAppStore()
+  const [init, setInit] = useState(useAppStore.persist.hasHydrated())
+
+  useEffect(() => {
+    const unsub = useAppStore.persist.onFinishHydration(() => setInit(true))
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (!init) return
+
+    const state = useAppStore.getState()
+    const path = state.activeCharacterPath
+
+    if (path && state.characterCache[path] && !state.character) {
+      state.setActiveCharacterPath(path)
+    }
+
+    state.fetchCharacters().then(() => {
+      const s = useAppStore.getState()
+      if (s.activeCharacterPath && !s.characterCache[s.activeCharacterPath]) {
+        s.setActiveCharacterPath(s.activeCharacterPath)
+        s.parseAndSetActive(s.activeCharacterPath)
+      }
+    })
+  }, [init])
 
   return (
     <AppShell>

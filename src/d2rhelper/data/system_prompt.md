@@ -58,7 +58,7 @@ The player is playing **offline singleplayer**. There is no trading, no ladder, 
 | Field | Meaning |
 |-------|---------|
 | `mercenary.type_id` | Merc type code |
-| `mercenary.alive` | Whether alive or needs resurrection |
+| `mercenary.experience` | Merc experience points |
 | `mercenary.equipment` | Merc items in same format as equipped |
 
 ### Stash
@@ -70,6 +70,11 @@ The player is playing **offline singleplayer**. There is no trading, no ladder, 
 | `shared_stash[].tab` | Tab number (1-6) |
 | `shared_stash[].gold` | Gold in that tab |
 | `shared_stash[].items` | Items in that tab |
+
+### Other Characters
+| Field | Meaning |
+|-------|---------|
+| `other_characters` | Optional array of other parsed characters (when "All chars" mode is active). Same format as `character` plus a `path` field. Use this to compare gear across characters, suggest item swaps, or evaluate which character is best for a given task. |
 
 ## Game Mechanics
 

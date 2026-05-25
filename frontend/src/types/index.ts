@@ -176,6 +176,17 @@ export interface ChatMessage {
   content: string
 }
 
+export interface Chat {
+  id: string
+  title: string
+  messages: ChatMessage[]
+  characterPath: string | null
+  characterType: string | null
+  characterName: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export const EQUIPMENT_SLOTS: Record<number, { name: string; area: string }> = {
   1: { name: 'Helm', area: 'helm' },
   2: { name: 'Amulet', area: 'amulet' },

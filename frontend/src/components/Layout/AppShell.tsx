@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { CharacterPicker } from './CharacterPicker'
+import { ChatSidebar } from '../Chat/ChatSidebar'
 
 type View = 'dashboard' | 'search' | 'chat'
 
@@ -11,7 +12,7 @@ const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { view, setView, character, loading, error } = useAppStore()
+  const { view, setView, character, loading, error, createChat } = useAppStore()
 
   return (
     <div className="flex h-screen bg-d2-bg">
@@ -41,7 +42,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           {NAV_ITEMS.map(({ view: v, label, icon }) => (
             <button
               key={v}
-              onClick={() => setView(v)}
+              onClick={() => {
+                if (v === 'chat') {
+                  createChat()
+                }
+                setView(v)
+              }}
               disabled={!character}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer
                 disabled:opacity-30 disabled:cursor-not-allowed font-body
@@ -56,8 +62,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
+        {view === 'chat' && (
+          <div className="flex-1 overflow-y-auto scrollbar-thin min-h-0">
+            <ChatSidebar />
+          </div>
+        )}
+
         {character && (
-          <div className="mt-auto p-3 border-t border-d2-border">
+          <div className="p-3 border-t border-d2-border">
             <div className="text-xs text-d2-muted font-body truncate">
               {character.status.hardcore && <span className="text-red-400 mr-1">HC</span>}
               {character.name} — {character.character_type} Lvl {character.level}

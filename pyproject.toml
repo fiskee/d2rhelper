@@ -1,0 +1,40 @@
+[project]
+name = "d2rhelper"
+version = "0.1.0"
+description = "Parse Diablo II: Resurrected offline saves into structured character and stash data"
+readme = "README.md"
+authors = [
+    { name = "fiskee" }
+]
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "alembic>=1.18.4",
+    "google-genai>=2.6.0",
+    "pydantic>=2.13.4",
+    "python-dotenv>=1.2.2",
+    "sqlalchemy>=2.0.49",
+]
+
+[project.scripts]
+d2rhelper = "d2rhelper:main"
+extract-txt = "scripts.extract_txt:main"
+
+[build-system]
+requires = ["uv_build>=0.9.21,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.14",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501"]

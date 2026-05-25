@@ -1,0 +1,12 @@
+.env
+__pycache__
+*.pyc
+.pytest_cache
+dist/
+*.egg-info
+d2rhelper.db
+d2r_context.json
+system_prompt.txt
+src/d2rhelper/data/game.db
+.ruff_cache/
+.venv/

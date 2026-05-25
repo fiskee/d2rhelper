@@ -3,12 +3,13 @@ import { useAppStore } from '../../store/appStore'
 import { CharacterPicker } from './CharacterPicker'
 import { ChatSidebar } from '../Chat/ChatSidebar'
 
-type View = 'dashboard' | 'search' | 'chat'
+type View = 'dashboard' | 'search' | 'chat' | 'sets'
 
 const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: '◆' },
   { view: 'search', label: 'Search', icon: '⌕' },
   { view: 'chat', label: 'Chat', icon: '💬' },
+  { view: 'sets', label: 'Sets', icon: '◈' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -48,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 }
                 setView(v)
               }}
-              disabled={!character}
+              disabled={!character && v !== 'sets'}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer
                 disabled:opacity-30 disabled:cursor-not-allowed font-body
                 ${view === v
@@ -85,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="p-6 max-w-6xl mx-auto">
-          {!character ? (
+          {!character && view !== 'sets' ? (
             <div className="flex items-center justify-center h-full min-h-[60vh]">
               <div className="text-center text-d2-muted font-body">
                 <div className="text-5xl mb-4">&#9876;</div>

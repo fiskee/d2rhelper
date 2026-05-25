@@ -1,4 +1,4 @@
-import type { CharactersResponse, ParseResponse, SearchResult } from '../types'
+import type { CharactersResponse, ParseResponse, SearchResult, SetData } from '../types'
 
 const API_BASE = '/api'
 
@@ -56,6 +56,14 @@ export async function searchItems(
 export async function getAutocomplete(query: string): Promise<string[]> {
   const params = new URLSearchParams({ q: query })
   const res = await fetch(`${API_BASE}/autocomplete?${params}`)
+  if (!res.ok) {
+    return []
+  }
+  return res.json()
+}
+
+export async function fetchSets(): Promise<SetData[]> {
+  const res = await fetch(`${API_BASE}/sets`)
   if (!res.ok) {
     return []
   }

@@ -2,10 +2,10 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { get, set, del } from 'idb-keyval'
 import type { StateStorage } from 'zustand/middleware'
-import { parseCharacter, listCharacters } from '../api/client'
-import type { Chat, ChatMessage, CharacterInfo, D2Character, ParsedItem, SharedStashTab } from '../types'
+import { parseCharacter, listCharacters, fetchSets } from '../api/client'
+import type { Chat, ChatMessage, CharacterInfo, D2Character, ParsedItem, SetData, SharedStashTab } from '../types'
 
-type View = 'dashboard' | 'search' | 'chat'
+type View = 'dashboard' | 'search' | 'chat' | 'sets'
 
 export interface TaggedItem {
   item: ParsedItem
@@ -100,6 +100,9 @@ interface AppState {
   addMessageToChat: (chatId: string, msg: ChatMessage) => void
   setChatStreaming: (s: boolean) => void
   setIncludeAllCharactersInChat: (v: boolean) => void
+
+  setData: SetData[] | null
+  fetchSetData: () => Promise<void>
 }
 
 const idbStorage: StateStorage = {
@@ -275,6 +278,16 @@ export const useAppStore = create<AppState>()(
       setChatStreaming: (chatStreaming) => set({ chatStreaming }),
 
       setIncludeAllCharactersInChat: (includeAllCharactersInChat) => set({ includeAllCharactersInChat }),
+
+      setData: null,
+      fetchSetData: async () => {
+        try {
+          const data = await fetchSets()
+          set({ setData: data })
+        } catch {
+          // keep stale data if any
+        }
+      },
     }),
     {
       name: 'd2rhelper-chat-storage',

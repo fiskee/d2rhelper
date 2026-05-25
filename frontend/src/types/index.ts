@@ -224,3 +224,27 @@ export function getItemBaseName(item: ParsedItem): string | null {
   }
   return null
 }
+
+export interface SetItemData {
+  name: string
+  code: string
+  base: string
+}
+
+export interface SetData {
+  name: string
+  items: SetItemData[]
+}
+
+export interface PlayerSetProgress {
+  setName: string
+  owned: number
+  total: number
+  pieces: {
+    name: string
+    code: string
+    base: string
+    owned: boolean
+    source: string | null
+  }[]
+}

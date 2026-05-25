@@ -257,6 +257,51 @@ async def search(
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+_sets_cache: list[dict[str, Any]] | None = None
+
+
+def get_sets() -> list[dict[str, Any]]:
+    global _sets_cache
+    if _sets_cache is not None:
+        return _sets_cache
+
+    gd = get_game_data()
+
+    code_to_name: dict[str, str] = {}
+    for table in ("weapons", "armor", "misc"):
+        rows = gd.conn.execute(f'SELECT code, name FROM "{table}" WHERE name != \'\'').fetchall()
+        for row in rows:
+            code_to_name[row["code"]] = row["name"]
+
+    rows = gd.conn.execute('SELECT "index", item, "set" FROM setitems WHERE "set" != \'\' ORDER BY "set", "index"').fetchall()
+
+    sets: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        set_name: str = row["set"]
+        piece_name: str = row["index"]
+        code: str = row["item"]
+        base_name = code_to_name.get(code, code)
+
+        if set_name not in sets:
+            sets[set_name] = {
+                "name": set_name,
+                "items": [],
+            }
+        sets[set_name]["items"].append({
+            "name": piece_name,
+            "code": code,
+            "base": base_name,
+        })
+
+    _sets_cache = list(sets.values())
+    return _sets_cache
+
+
+@app.get("/api/sets")
+async def list_sets() -> JSONResponse:
+    return JSONResponse(content=get_sets())
+
+
 _SYSTEM_PROMPT = (
     (Path(__file__).parent / "data" / "system_prompt.md")
     .read_text(encoding="utf-8")

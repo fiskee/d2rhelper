@@ -4,6 +4,7 @@ import { AppShell } from './components/Layout/AppShell'
 import { Dashboard } from './components/Dashboard/Dashboard'
 import { SearchView } from './components/Search/SearchView'
 import { ChatPanel } from './components/Chat/ChatPanel'
+import { SetsView } from './components/Sets/SetsView'
 
 function App() {
   const { view, character, stashTabs } = useAppStore()
@@ -44,6 +45,7 @@ function App() {
           <ChatPanel />
         </div>
       )}
+      {view === 'sets' && <SetsView />}
     </AppShell>
   )
 }

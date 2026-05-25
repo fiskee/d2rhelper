@@ -6,7 +6,7 @@ Browse character gear, search items across all characters and stash, track set i
 
 ## Quick start
 
-You need [Python 3.12+](https://www.python.org/downloads/), [git](https://git-scm.com/downloads), and a local Diablo II: Resurrected installation.
+You need [Python 3.12+](https://www.python.org/downloads/), [Node.js](https://nodejs.org/), [git](https://git-scm.com/downloads), and a local Diablo II: Resurrected installation.
 
 ```bash
 git clone https://github.com/fiskee/d2rhelper.git
@@ -16,7 +16,7 @@ bash scripts/setup.sh
 
 On Windows use `scripts\setup.bat`.
 
-The setup script installs uv, syncs dependencies, extracts game data, and copies `.env.example` to `.env`. After it finishes, get a free API key at [Google AI Studio](https://aistudio.google.com/apikey), add it to the `.env` file, then:
+The setup script installs uv, syncs dependencies, extracts game data, builds the frontend, and copies `.env.example` to `.env`. After it finishes, get a free API key at [Google AI Studio](https://aistudio.google.com/apikey), add it to the `.env` file, then:
 
 ```bash
 uv run d2rhelper

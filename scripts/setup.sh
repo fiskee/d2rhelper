@@ -48,6 +48,20 @@ echo "Extracting game data from Diablo II: Resurrected..."
 uv run python scripts/extract_txt.py
 echo "[ok] Game data extracted."
 
+# ---------- frontend ----------
+if ! command -v npm &>/dev/null; then
+  echo ""
+  echo "Error: npm is required to build the frontend."
+  echo "Install Node.js from https://nodejs.org/"
+  exit 1
+fi
+echo "[ok] npm found"
+echo ""
+echo "Building frontend..."
+npm --prefix frontend install --silent
+npm --prefix frontend run build
+echo "[ok] Frontend built."
+
 # ---------- .env ----------
 if [ ! -f .env ]; then
   if [ -f .env.example ]; then

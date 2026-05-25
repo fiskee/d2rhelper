@@ -42,6 +42,21 @@ echo Extracting game data from Diablo II: Resurrected...
 uv run python scripts\extract_txt.py
 echo [ok] Game data extracted.
 
+REM ---------- frontend ----------
+where npm >nul 2>nul
+if %errorlevel% neq 0 (
+    echo.
+    echo Error: npm is required to build the frontend.
+    echo Install Node.js from https://nodejs.org/
+    exit /b 1
+)
+echo [ok] npm found
+echo.
+echo Building frontend...
+call npm --prefix frontend install --silent
+call npm --prefix frontend run build
+echo [ok] Frontend built.
+
 REM ---------- .env ----------
 if not exist .env (
     if exist .env.example (

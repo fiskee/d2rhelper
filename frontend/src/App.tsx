@@ -21,7 +21,7 @@ function App() {
     const state = useAppStore.getState()
     const path = state.activeCharacterPath
 
-    if (path && state.characterCache[path] && !state.character) {
+    if (path && state.characterCache[path]) {
       state.setActiveCharacterPath(path)
     }
 

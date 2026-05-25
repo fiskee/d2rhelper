@@ -4,7 +4,7 @@ import type { ChatMessage } from '../../types'
 import { useAppStore } from '../../store/appStore'
 import { lookupItem } from '../../api/client'
 import type { DBAttrs } from '../../api/client'
-import { ItemLink } from './ItemTooltip'
+import { ItemLink, AreaLink } from './ItemTooltip'
 
 function ItemLinkResolver({ name, itemType }: { name: string; itemType: string }) {
   const itemIndex = useAppStore((s) => s.itemIndex)
@@ -47,8 +47,17 @@ function ItemLinkResolver({ name, itemType }: { name: string; itemType: string }
   return <span>{name}</span>
 }
 
+function PlayerItemLink({ name, itemId }: { name: string; itemId: string }) {
+  const idIndex = useAppStore((s) => s.idIndex)
+  const item = idIndex[itemId]
+  if (!item) return <span>{name}</span>
+  return <ItemLink name={name} playerItem={item} />
+}
+
 function MarkdownContent({ content }: { content: string }) {
-  const processed = content.replace(/\]\(item:/g, '](#item:')
+  const processed = content
+    .replace(/\]\(item:/g, '](#item:')
+    .replace(/\]\(area: "([^"]*)"\)/g, '](#area "$1")')
   return (
     <ReactMarkdown
       components={{
@@ -91,12 +100,24 @@ function MarkdownContent({ content }: { content: string }) {
           <blockquote className="border-l-3 border-d2-accent/40 pl-3 italic text-d2-muted" style={{ marginTop: 10, marginBottom: 10 }}>{children}</blockquote>
         ),
         hr: () => <hr className="border-d2-border" style={{ marginTop: 12, marginBottom: 12 }} />,
-        a: ({ href, children }) => {
+        a: ({ href, title, children }) => {
+          if (href && href.startsWith('#item:p:')) {
+            const itemId = href.slice('#item:p:'.length)
+            const name = String(children ?? '')
+            if (!name) return null
+            return <PlayerItemLink name={name} itemId={itemId} />
+          }
           if (href && href.startsWith('#item:')) {
             const itemType = href.slice('#item:'.length)
             const name = String(children ?? '')
             if (!name) return null
             return <ItemLinkResolver name={name} itemType={itemType} />
+          }
+          if (href === '#area' && title) {
+            const name = String(children ?? '')
+            if (!name) return null
+            const info = title.replace(/&amp;/g, '&')
+            return <AreaLink name={name} info={info} />
           }
           return (
             <a href={href} className="text-d2-accent underline hover:text-d2-accent-hover" target="_blank" rel="noopener noreferrer">

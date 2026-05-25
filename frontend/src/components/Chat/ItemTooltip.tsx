@@ -180,6 +180,58 @@ export function ItemLink({
             ) : null}
           </div>,
           document.body,
+        )      }
+    </>
+  )
+}
+
+export function AreaLink({ name, info }: { name: string; info: string }) {
+  const [hovered, setHovered] = useState(false)
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (hovered && anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      const gap = 4
+      const top = rect.bottom + gap
+      let left = rect.left
+
+      if (left + 320 > window.innerWidth - 8) {
+        left = window.innerWidth - 328
+      }
+      if (left < 8) left = 8
+
+      setPos({ top, left })
+    }
+  }, [hovered])
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className="cursor-help underline decoration-dotted underline-offset-2 text-d2-accent"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {name}
+      </span>
+      {hovered &&
+        createPortal(
+          <div
+            className="fixed pointer-events-none"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <div className="bg-d2-surface border border-d2-border rounded-md p-2.5 max-w-80 shadow-lg z-[9999]">
+              <div className="text-xs font-d2 text-d2-accent mb-1">{name}</div>
+              <div className="text-xs text-d2-ink font-body leading-relaxed">
+                {info.split('|').map((line, i) => (
+                  <div key={i} className="py-0.5">{line.trim()}</div>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
         )}
     </>
   )

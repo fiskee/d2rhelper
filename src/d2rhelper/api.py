@@ -355,18 +355,23 @@ async def chat_websocket(ws: WebSocket) -> None:
                     )
 
                 system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
+
+                if chat_id:
+                    history = store.get_messages(chat_id)
+                    if history:
+                        lines = ["\n\n--- Previous conversation ---\n"]
+                        for msg in history[-40:]:
+                            role = "User" if msg["role"] == "user" else "Assistant"
+                            lines.append(f"{role}: {msg['content']}\n")
+                        lines.append("--- End of previous conversation ---\n")
+                        system_instruction += "".join(lines)
+
                 chat = client.chats.create(
                     model=model_name,
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction,
                     ),
                 )
-
-                if chat_id:
-                    history = store.get_messages(chat_id)
-                    for msg in history:
-                        if msg["role"] == "user":
-                            chat.send_message(msg["content"])
 
                 await ws.send_text(json.dumps({"text": "Ready. Ask me about your character!", "done": True}))
 

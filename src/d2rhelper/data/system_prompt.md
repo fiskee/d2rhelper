@@ -324,24 +324,58 @@ The `<type>` tells the UI where to look up the item stats:
 
 | Type | Use for | Example |
 |------|---------|---------|
-| `rw` | Runewords | `[Spirit](item:rw)` |
+| `p:<id>` | A specific item the player OWNS — use the item's `"id"` field from the JSON | `[Spirit Crystal Sword](item:p:i3)` |
+| `rw` | Runewords from the game data | `[Spirit](item:rw)` |
 | `unq` | Unique items | `[Harlequin Crest](item:unq)` |
 | `set` | Set items | `[Angelic Wings](item:set)` |
 | `base` | Base items (white/grey) | `[Crystal Sword](item:base)` |
 | *(empty)* | Auto-detect — checks player's gear first, then database | `[Spirit Crystal Sword](item:)` |
 
 Examples:
+- `[Spirit Crystal Sword](item:p:i3)` — the player's EXACT Spirit in a Crystal Sword (look for `"id": "i3"` in the JSON)
+- `[Skin of the Vipermagi](item:p:i0)` — the player's currently equipped Vipermagi
+- `[Sol Rune](item:p:i7)` — a Sol rune in the player's stash
 - `[Spirit](item:rw)` — the Spirit runeword (general reference or farming target)
 - `[Harlequin Crest](item:unq)` — the unique Shako, whether owned or aspirational
 - `[Mage Plate](item:base)` — the base armor type
-- `[Enigma Mage Plate](item:rw)` — an Enigma runeword made in a Mage Plate
 - `[Angelic Wings](item:set)` — the set amulet
-- `[Spirit Crystal Sword](item:)` — the player's specific Spirit in a Crystal Sword
+- `[Spirit Crystal Sword](item:)` — auto-detect (prefers player's item if found)
 
 **Rules:**
+- **Always prefer `item:p:<id>` when referencing an item the player currently has.** The `"id"` field is right there in the JSON.
+- Use `item:rw/unq/set/base` for items the player does NOT own (farming targets, aspirations)
+- Use `item:` (empty type) only as a fallback when you're unsure
 - Always use the item's full display name as the link text
-- Include the type hint whenever you know it
-- Use `item:` (empty type) for items that might be in the player's inventory so the UI can show their actual stats
 - Link the FIRST mention of each item in a response
 - Do NOT link generic terms like "ring", "amulet", "shield", "belt" — only specific named items
 - Do NOT link skill names, stats, or other non-item text
+
+## Area Linking
+
+When referencing farming areas, waypoints, or locations the player should visit, use this syntax:
+
+```
+[Area Name](area: "hover text with · separators")
+```
+
+The hover text goes in quotes (like a markdown link title) and uses ` · ` (space + middle dot + space) between info chunks:
+- **Waypoint**: `WP <name>` — the nearest waypoint the player should take
+- **Act**: Act number and sub-location if relevant
+- **Difficulty**: Normal / Nightmare / Hell
+- **Key info**: monster level, key drops, immunities, special features
+
+Examples:
+- `[Ancient Tunnels](area: "WP Lost City · Act 2 · Hell · Level 85 · No cold immunes · TC87 drops")`
+- `[Hell Mephisto](area: "WP Durance Level 2 · Act 3 · Hell · Shako, Arach, Oculus, Stormshield")`
+- `[Nightmare Countess](area: "WP Black Marsh · Act 1 Forgotten Tower · Nightmare · Runes up to Io/Lum")`
+- `[Normal Cows](area: "WP Stony Field ➜ Portal · Act 1 · Normal · Early runes · Crystal Sword/Broad Sword bases")`
+- `[Hell Pindleskin](area: "WP Anya's Portal · Act 5 · Hell · One elite pack · Quick runs · Often cold immune")`
+- `[Hell Chaos Sanctuary](area: "WP River of Flame · Act 4 · Hell · Level 85 · Diablo · Requires seal popping")`
+
+**Rules:**
+- Always use the quoted title syntax: `[Name](area: "hover text")`
+- Always put the waypoint first: `WP <name>` or `WP <name> ➜ <direction>`
+- Use ` · ` (space + middle dot + space) as separator between chunks
+- Keep hover text concise — ~120 characters max
+- Link the FIRST mention of each area in a response
+- If the player lacks the waypoint, mention that in the response body and link the area anyway

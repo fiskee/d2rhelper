@@ -95,6 +95,7 @@ interface AppState {
   chatStreaming: boolean
   includeAllCharactersInChat: boolean
   itemIndex: Record<string, ParsedItem[]>
+  idIndex: Record<string, ParsedItem>
   createChat: () => void
   deleteChat: (id: string) => void
   setActiveChat: (id: string) => void
@@ -102,6 +103,7 @@ interface AppState {
   setChatStreaming: (s: boolean) => void
   setIncludeAllCharactersInChat: (v: boolean) => void
   setItemIndex: (idx: Record<string, ParsedItem[]>) => void
+  setIdIndex: (idx: Record<string, ParsedItem>) => void
   fetchChatsFromBackend: () => Promise<void>
 
   setData: SetData[] | null
@@ -252,6 +254,7 @@ export const useAppStore = create<AppState>()(
       chatStreaming: false,
       includeAllCharactersInChat: false,
       itemIndex: {},
+      idIndex: {},
 
       createChat: () => {
         const chat = makeChat(get())
@@ -313,6 +316,8 @@ export const useAppStore = create<AppState>()(
       setIncludeAllCharactersInChat: (includeAllCharactersInChat) => set({ includeAllCharactersInChat }),
 
       setItemIndex: (itemIndex) => set({ itemIndex }),
+
+      setIdIndex: (idIndex) => set({ idIndex }),
 
       setData: null,
       fetchSetData: async () => {

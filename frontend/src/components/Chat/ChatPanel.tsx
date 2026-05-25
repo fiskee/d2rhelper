@@ -132,6 +132,15 @@ export function ChatPanel() {
       const state = useAppStore.getState()
       const char = state.character
 
+      let idCounter = 0
+      const idIndex: Record<string, ParsedItem> = {}
+
+      function tagItem(item: ParsedItem): Record<string, unknown> {
+        const id = `i${idCounter++}`
+        idIndex[id] = item
+        return { id, ...item }
+      }
+
       function serialiseCharacter(c: typeof char) {
         if (!c) return null
         return {
@@ -140,30 +149,36 @@ export function ChatPanel() {
           character_type: c.character_type,
           attributes: c.attributes,
           skills: c.skills,
-          items: c.items,
+          items: c.items.map(tagItem),
           mercenary: {
             merc_id: c.mercenary.merc_id,
             name_id: c.mercenary.name_id,
             type_id: c.mercenary.type_id,
             experience: c.mercenary.experience,
-            items: c.mercenary.items,
+            items: c.mercenary.items.map(tagItem),
           },
         }
       }
 
+      const taggedStashTabs = state.stashTabs.map((tab) => ({
+        ...tab,
+        items: tab.items.map(tagItem),
+      }))
+
       const contextPayload: Record<string, unknown> = {
         chat_id: chatId,
         character: serialiseCharacter(char),
-        stash_tabs: state.stashTabs,
+        stash_tabs: taggedStashTabs,
       }
 
       if (state.includeAllCharactersInChat) {
         const otherCharacters = Object.entries(state.characterCache)
           .filter(([path]) => path !== state.activeCharacterPath)
-          .map(([path, c]) => ({
-            path,
-            ...serialiseCharacter(c),
-          }))
+          .map(([path, c]) => {
+            const data = serialiseCharacter(c)
+            return data ? { path, ...data } : null
+          })
+          .filter(Boolean)
         if (otherCharacters.length > 0) {
           contextPayload.other_characters = otherCharacters
         }
@@ -177,6 +192,7 @@ export function ChatPanel() {
         state.activeCharacterPath,
       )
       useAppStore.getState().setItemIndex(itemIndex)
+      useAppStore.getState().setIdIndex(idIndex)
 
       ws.send(JSON.stringify({ type: 'context', payload: JSON.stringify(contextPayload) }))
     }

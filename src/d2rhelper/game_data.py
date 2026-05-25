@@ -123,7 +123,7 @@ class GameData:
                 "Run the extraction script to build it from your D2R installation."
             )
         self.db_path = db_path
-        self.conn = sqlite3.connect(str(db_path))
+        self.conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._headers: dict[str, list[str]] = {}
         self._load_headers()

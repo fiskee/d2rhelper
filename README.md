@@ -1,5 +1,7 @@
 # d2rhelper
 
+This is mostly built as a personal project to test opensource LLMs.
+
 Parse Diablo II: Resurrected offline save files. Features a React web frontend with instant item search across character/stash, equipment dashboard, and a streaming Gemini chat assistant.
 
 Inspired by [d2rsavegameparser](https://github.com/Paladijn/d2rsavegameparser/). CASC extraction powered by [CascLib](https://github.com/ladislav-zezula/CascLib).

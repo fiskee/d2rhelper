@@ -146,6 +146,20 @@ export interface SharedStashTab {
   items: ParsedItem[]
 }
 
+export interface CharacterInfo {
+  path: string
+  name: string
+  character_type: string
+  level: number
+  hardcore: boolean
+  mtime: number | null
+}
+
+export interface CharactersResponse {
+  characters: CharacterInfo[]
+  stash_path: string | null
+}
+
 export interface ParseResponse {
   character: D2Character
   stash_tabs: SharedStashTab[]

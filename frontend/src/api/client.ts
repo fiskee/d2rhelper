@@ -1,4 +1,4 @@
-import type { ParseResponse, SearchResult } from '../types'
+import type { CharactersResponse, ParseResponse, SearchResult } from '../types'
 
 const API_BASE = '/api'
 
@@ -23,12 +23,29 @@ export async function autoParse(): Promise<ParseResponse & { character_path?: st
   return res.json()
 }
 
+export async function listCharacters(): Promise<CharactersResponse> {
+  const res = await fetch(`${API_BASE}/characters`)
+  if (!res.ok) {
+    throw new Error(`Character list failed: ${res.statusText}`)
+  }
+  return res.json()
+}
+
 export async function searchItems(
   query: string,
-  characterId?: string,
+  characterPaths: string[],
+  stashPath?: string,
 ): Promise<SearchResult[]> {
   const params = new URLSearchParams({ q: query })
-  if (characterId) params.set('character_id', characterId)
+  if (characterPaths.length > 0) {
+    params.set('character_paths', JSON.stringify(characterPaths))
+  }
+  if (characterPaths.length === 1) {
+    params.set('character_path', characterPaths[0])
+  }
+  if (stashPath) {
+    params.set('stash_path', stashPath)
+  }
   const res = await fetch(`${API_BASE}/search?${params}`)
   if (!res.ok) {
     throw new Error(`Search failed: ${res.statusText}`)

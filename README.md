@@ -2,7 +2,7 @@
 
 This is mostly built as a personal project to test open source LLMs.
 
-Parse Diablo II: Resurrected offline save files. Features a React web frontend with instant item search across character/stash, equipment dashboard, and a streaming Gemini chat assistant.
+Parse Diablo II: Resurrected offline save files. Features a React web frontend with instant item search across multiple characters and stash, equipment dashboard, and a streaming Gemini chat assistant.
 
 Inspired by [d2rsavegameparser](https://github.com/Paladijn/d2rsavegameparser/). CASC extraction powered by [CascLib](https://github.com/ladislav-zezula/CascLib).
 
@@ -94,16 +94,16 @@ Start the API server (serves the React frontend if built, or API-only for dev):
 cp .env.example .env
 # Edit .env to add your GEMINI_API_KEY (required for chat)
 
-uv run d2rhelper serve
+uv run d2rhelper
 ```
 
-Opens at `http://127.0.0.1:8000`. Click **Load Character** to auto-detect your save file, or expand **Manual path...** to specify one.
+Opens at `http://127.0.0.1:8000`. Click **Auto-detect** to find your D2R characters, then select one from the dropdown. The sidebar also has a manual path fallback.
 
 For development with hot-reload on both sides:
 
 ```bash
 # Terminal 1 — API server
-uv run d2rhelper serve --reload
+uv run d2rhelper --reload
 
 # Terminal 2 — Vite dev server (proxies /api to the backend)
 cd frontend && npm run dev
@@ -132,58 +132,20 @@ Character and stash parsing entry points:
 API server (FastAPI):
 
 - `src/d2rhelper/api.py` - REST + WebSocket endpoints
-- `src/d2rhelper/cli.py` - CLI with `serve` subcommand
+- `src/d2rhelper/cli.py` — CLI entrypoint that starts the API server
 
 ### Frontend (React + Vite + TypeScript + Tailwind CSS v4)
 
-Located in `frontend/`. State management via Zustand.
+Located in `frontend/`. State management via Zustand. Supports multiple characters — auto-detect all your save files, switch between them via sidebar dropdown, and optionally search across all loaded characters.
 
 - **Dashboard** — character info, 12-slot equipment grid, mercenary grid, inventory, stash tabs
-- **Search** — instant client-side search across all items with word-boundary ranking, filter suggestions from your actual items, responsive card grid layout
+- **Search** — instant client-side search across items with word-boundary ranking, filter suggestions from your actual items, responsive card grid layout
 - **Chat** — WebSocket streaming Gemini chat with markdown rendering, auto-loads character context
 
-## CLI Commands
-
-### Parse a character save
+## CLI
 
 ```bash
-uv run d2rhelper parse-character "/path/to/Character.d2s" --db d2rhelper.db --json
+uv run d2rhelper --help
 ```
 
-This creates an immutable snapshot row in SQLite and stores the normalized character payload.
-
-### Parse a shared stash file
-
-```bash
-uv run d2rhelper parse-stash "/path/to/SharedStashSoftCoreV2.d2i" --json
-```
-
-### Legacy character UI (Python HTTP server)
-
-```bash
-uv run d2rhelper ui
-```
-
-Serves a simple HTML character viewer at `http://127.0.0.1:8765`.
-
-### Generate LLM context JSON
-
-```bash
-uv run d2rhelper llm-json -o d2r_context.json
-```
-
-### Generate the full system prompt (for external LLM chat)
-
-```bash
-uv run d2rhelper prompt -o system_prompt.txt
-```
-
-Paste the output as the system message in your platform of choice to get grounded, inventory-aware D2R advice.
-
-### Terminal chat (Gemini)
-
-```bash
-uv run d2rhelper chat
-```
-
-Interactive terminal chat with Gemini, pre-loaded with your character context. Type `quit` to exit, `clear` to reset.
+Starts the API server on `http://127.0.0.1:8000`. Options: `--host`, `--port`, `--reload`.

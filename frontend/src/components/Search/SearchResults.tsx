@@ -5,8 +5,9 @@ import { getItemDisplayName, ITEM_QUALITY_NAMES, EQUIPMENT_SLOTS } from '../../t
 import { ItemCard } from '../Dashboard/ItemTable'
 
 function getSourceLabel(tagged: TaggedItem, characterName?: string): string {
-  const { item, source, tabIndex } = tagged
+  const { item, source, tabIndex, characterPath } = tagged
   const pos = `(${item.x}, ${item.y})`
+  const charLabel = characterPath ? `[${characterName ?? '?'}] ` : ''
 
   if (source === 'stash') {
     const tabLabel = tabIndex != null ? `Tab ${tabIndex + 1}` : 'Shared Stash'
@@ -16,21 +17,21 @@ function getSourceLabel(tagged: TaggedItem, characterName?: string): string {
   if (source === 'mercenary') {
     if (item.location === 1) {
       const slot = EQUIPMENT_SLOTS[item.position]
-      return `Mercenary — ${slot?.name ?? 'Equipment'}`
+      return `${charLabel}Mercenary — ${slot?.name ?? 'Equipment'}`
     }
-    return `Mercenary ${pos}`
+    return `${charLabel}Mercenary ${pos}`
   }
 
   if (item.location === 1) {
     const slot = EQUIPMENT_SLOTS[item.position]
-    return `${characterName ?? 'Character'} — ${slot?.name ?? 'Equipment'}`
+    return `${charLabel}${slot?.name ?? 'Equipment'}`
   }
-  if (item.location === 2) return `${characterName ?? 'Character'} — Belt ${pos}`
-  if (item.location === 0 && item.container === 1) return `${characterName ?? 'Character'} — Inventory ${pos}`
-  if (item.location === 0 && item.container === 4) return `${characterName ?? 'Character'} — Cube ${pos}`
-  if (item.location === 0 && item.container === 5) return `${characterName ?? 'Character'} — Personal Stash ${pos}`
-  if (item.location === 6) return `${characterName ?? 'Character'} — Socketed`
-  return `${characterName ?? 'Character'} ${pos}`
+  if (item.location === 2) return `${charLabel}Belt ${pos}`
+  if (item.location === 0 && item.container === 1) return `${charLabel}Inventory ${pos}`
+  if (item.location === 0 && item.container === 4) return `${charLabel}Cube ${pos}`
+  if (item.location === 0 && item.container === 5) return `${charLabel}Personal Stash ${pos}`
+  if (item.location === 6) return `${charLabel}Socketed`
+  return `${charLabel}${pos}`
 }
 
 function startsWord(text: string, q: string): boolean {
@@ -42,7 +43,11 @@ function startsWord(text: string, q: string): boolean {
 }
 
 export function SearchResults() {
-  const { searchQuery, allItems, character } = useAppStore()
+  const { searchQuery, allItems, character, characterCache } = useAppStore()
+
+  function getCharName(charPath: string): string {
+    return characterCache[charPath]?.name ?? '?'
+  }
 
   const results = useMemo(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) return []
@@ -146,7 +151,7 @@ export function SearchResults() {
         {results.map(({ tagged }) => (
           <div key={`${tagged.source}-${tagged.tabIndex ?? ''}-${tagged.item.location}-${tagged.item.position}-${tagged.item.index}-${tagged.item.start_bit}`}>
             <div className="text-[10px] text-d2-muted mb-1 font-body tracking-wide uppercase truncate">
-              {getSourceLabel(tagged, character?.name)}
+              {getSourceLabel(tagged, tagged.characterPath ? getCharName(tagged.characterPath) : character?.name)}
             </div>
             <ItemCard item={tagged.item} compact />
           </div>

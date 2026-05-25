@@ -39,9 +39,58 @@ class CharacterParser:
         self.game_data = game_data or GameData.get_instance()
         self.item_parser = ItemParser(self.game_data)
 
+    DEFAULT_CLASS_NAMES: dict[int, str] = {
+        0: "Amazon",
+        1: "Sorceress",
+        2: "Necromancer",
+        3: "Paladin",
+        4: "Barbarian",
+        5: "Druid",
+        6: "Assassin",
+    }
+
     def parse_file(self, file_path: str | Path) -> D2Character:
         data = Path(file_path).read_bytes()
         return self.parse_bytes(data)
+
+    @staticmethod
+    def read_character_info(file_path: str | Path) -> dict | None:
+        try:
+            path = Path(file_path)
+            if not path.is_file():
+                return None
+            data = path.read_bytes()
+            if len(data) < 315:
+                return None
+            header = int.from_bytes(data[0:4], byteorder="little", signed=False)
+            if header != 0xAA55AA55:
+                return None
+            version = int.from_bytes(data[4:8], "little", signed=False)
+            if version != CharacterParser.SUPPORTED_VERSION:
+                return None
+            status_byte = data[20]
+            hardcore = bool(status_byte & (1 << 2))
+            class_id = data[24]
+            character_type = CharacterParser.DEFAULT_CLASS_NAMES.get(class_id, "Unknown")
+            level = data[27]
+            name_bytes = data[299:315]
+            null_pos = name_bytes.find(b"\x00")
+            if null_pos >= 0:
+                name_bytes = name_bytes[:null_pos]
+            name = name_bytes.decode("ascii", errors="replace").strip()
+            if not name:
+                name = path.stem
+            mtime = path.stat().st_mtime
+            return {
+                "path": str(path),
+                "name": name,
+                "character_type": character_type,
+                "level": level,
+                "hardcore": hardcore,
+                "mtime": mtime,
+            }
+        except Exception:
+            return None
 
     def parse_bytes(self, data: bytes) -> D2Character:
         if len(data) < self.MIN_FILE_SIZE:

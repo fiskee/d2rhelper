@@ -9,14 +9,14 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from d2rhelper.game_data import GameData
-from d2rhelper.llm_context import build_llm_context
 from d2rhelper.models import ItemQuality
 from d2rhelper.parser import CharacterParser
 from d2rhelper.shared_stash_parser import SharedStashParser
-from d2rhelper.ui import find_local_character_file, find_local_shared_stash_file
+from d2rhelper.casc import find_all_character_files, find_local_character_file, find_local_shared_stash_file
 
 load_dotenv()
 
@@ -183,6 +183,19 @@ async def autocomplete(q: str = "") -> JSONResponse:
     return JSONResponse(content=matches[:10])
 
 
+@app.get("/api/characters")
+async def list_characters() -> JSONResponse:
+    try:
+        characters = find_all_character_files()
+        stash_path = find_local_shared_stash_file()
+        return JSONResponse(content={
+            "characters": [c.model_dump(mode="json") for c in characters],
+            "stash_path": str(stash_path) if stash_path else None,
+        })
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
 @app.post("/api/parse")
 async def parse(req: ParseRequest) -> JSONResponse:
     try:
@@ -217,15 +230,27 @@ async def parse_auto() -> JSONResponse:
 async def search(
     q: str = "",
     character_path: str = "",
+    character_paths: str = "",
     stash_path: str = "",
 ) -> JSONResponse:
     if not q or len(q) < 2:
         return JSONResponse(content=[])
-    if not character_path:
+    paths: list[str] = []
+    if character_paths:
+        try:
+            paths = json.loads(character_paths)
+        except json.JSONDecodeError:
+            pass
+    if character_path and character_path not in paths:
+        paths.append(character_path)
+    if not paths:
         return JSONResponse(content=[])
     try:
-        results = _search_items(q, character_path, stash_path or None)
-        return JSONResponse(content=results)
+        all_results: list[dict[str, Any]] = []
+        for cp in paths:
+            all_results.extend(_search_items(q, cp, stash_path or None))
+        all_results.sort(key=lambda r: r["score"], reverse=True)
+        return JSONResponse(content=all_results[:50])
     except FileNotFoundError as e:
         return JSONResponse(content={"error": str(e)}, status_code=404)
     except Exception as e:
@@ -298,3 +323,8 @@ async def chat_websocket(ws: WebSocket) -> None:
             await ws.send_text(json.dumps({"text": f"Error: {exc}", "done": True}))
         except Exception:
             pass
+
+
+_frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")

@@ -7,10 +7,18 @@ import type { D2Character, SharedStashTab } from '../../types'
 
 function getCategoryItems(character: D2Character) {
   const equipped = character.items.filter((i) => i.location === 1)
-  const belt = character.items.filter((i) => i.location === 2)
-  const inventory = character.items.filter((i) => i.location === 0 && i.container === 1)
-  const cube = character.items.filter((i) => i.location === 0 && i.container === 4)
-  const personalStash = character.items.filter((i) => i.location === 0 && i.container === 5)
+  const belt = character.items
+    .filter((i) => i.location === 2)
+    .sort((a, b) => a.position - b.position)
+  const inventory = character.items
+    .filter((i) => i.location === 0 && i.container === 1)
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+  const cube = character.items
+    .filter((i) => i.location === 0 && i.container === 4)
+    .sort((a, b) => a.y - b.y || a.x - b.x)
+  const personalStash = character.items
+    .filter((i) => i.location === 0 && i.container === 5)
+    .sort((a, b) => a.y - b.y || a.x - b.x)
   const socketed = character.items.filter((i) => i.location === 6)
   const other = character.items.filter(
     (i) => ![...equipped, ...belt, ...inventory, ...cube, ...personalStash, ...socketed].includes(i),

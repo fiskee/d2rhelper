@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/appStore'
 import { getItemDisplayName } from '../../types'
 
 export function SearchBar() {
-  const { searchQuery, setSearchQuery, allItems } = useAppStore()
+  const { searchQuery, setSearchQuery, allItems, searchAllCharacters, setSearchAllCharacters, characterCache } = useAppStore()
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIdx, setSelectedIdx] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -91,6 +91,22 @@ export function SearchBar() {
                      placeholder:text-d2-muted focus:outline-none focus:border-d2-accent font-body"
         />
       </div>
+      {Object.keys(characterCache).length > 1 && (
+        <div className="flex items-center gap-2 mt-2">
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={searchAllCharacters}
+              onChange={(e) => setSearchAllCharacters(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-d2-border bg-d2-surface accent-d2-accent cursor-pointer"
+            />
+            <span className="text-xs text-d2-muted font-body">Search all characters</span>
+          </label>
+          <span className="text-[10px] text-d2-muted/60 font-body">
+            ({Object.keys(characterCache).length} loaded)
+          </span>
+        </div>
+      )}
       {showSuggestions && suggestions.length > 0 && (
         <div className="absolute z-10 top-full mt-1 w-full bg-d2-surface border border-d2-border rounded-lg shadow-lg overflow-hidden">
           {suggestions.map((s, i) => (

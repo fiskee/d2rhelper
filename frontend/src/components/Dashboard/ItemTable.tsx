@@ -80,7 +80,7 @@ export function ItemTable({ items, title }: { items: ParsedItem[]; title: string
         <h2 className="text-sm font-d2 text-d2-accent">{title}</h2>
         <span className="text-xs text-d2-muted">{items.length}</span>
       </div>
-      <div className="p-2 grid gap-1 max-h-64 overflow-y-auto scrollbar-thin">
+      <div className="p-3 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[28rem] overflow-y-auto scrollbar-thin">
         {items.map((item) => (
           <ItemCard key={`${item.location}-${item.position}-${item.index}-${item.x}-${item.y}`} item={item} />
         ))}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useAppStore } from '../../store/appStore'
-import { FileUpload } from './FileUpload'
+import { CharacterPicker } from './CharacterPicker'
 
 type View = 'dashboard' | 'search' | 'chat'
 
@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="p-3 border-b border-d2-border">
-          <FileUpload />
+          <CharacterPicker />
         </div>
 
         {error && (
@@ -58,7 +58,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {character && (
           <div className="mt-auto p-3 border-t border-d2-border">
-            <div className="text-xs text-d2-muted font-body truncate">{character.name} — Lvl {character.level}</div>
+            <div className="text-xs text-d2-muted font-body truncate">
+              {character.status.hardcore && <span className="text-red-400 mr-1">HC</span>}
+              {character.name} — {character.character_type} Lvl {character.level}
+            </div>
+            {Array.isArray(character.parse_warnings) && character.parse_warnings.length > 0 && (
+              <div className="text-[10px] text-amber-500 mt-1 font-body">
+                ⚠ {character.parse_warnings.length} warning{character.parse_warnings.length !== 1 ? 's' : ''}
+              </div>
+            )}
           </div>
         )}
       </aside>

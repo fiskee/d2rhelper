@@ -158,6 +158,15 @@ class D2Character(BaseModel):
     parse_warnings: list[str] = Field(default_factory=list)
 
 
+class CharacterInfo(BaseModel):
+    path: str
+    name: str
+    character_type: str
+    level: int
+    hardcore: bool
+    mtime: float | None = None
+
+
 class SharedStashTab(BaseModel):
     index: int
     version: int

@@ -18,7 +18,8 @@ export function ChatPanel() {
   } = useAppStore()
 
   const wsRef = useRef<WebSocket | null>(null)
-  const streamingRef = useRef('')
+  const streamingAccRef = useRef('')
+  const [streamingText, setStreamingText] = useState('')
   const connectingRef = useRef(false)
   const mountedRef = useRef(false)
   const skipNextRef = useRef(false)
@@ -39,12 +40,14 @@ export function ChatPanel() {
         skipNextRef.current = false
         if (done) return
       }
-      streamingRef.current += text
+      streamingAccRef.current += text
+      setStreamingText(streamingAccRef.current)
       if (done) {
-        if (streamingRef.current.trim()) {
-          addChatMessage({ role: 'assistant', content: streamingRef.current })
+        if (streamingAccRef.current.trim()) {
+          addChatMessage({ role: 'assistant', content: streamingAccRef.current })
         }
-        streamingRef.current = ''
+        streamingAccRef.current = ''
+        setStreamingText('')
         setChatStreaming(false)
       } else {
         setChatStreaming(true)
@@ -95,7 +98,8 @@ export function ChatPanel() {
     return () => {
       mountedRef.current = false
       setChatStreaming(false)
-      streamingRef.current = ''
+      streamingAccRef.current = ''
+      setStreamingText('')
       connectingRef.current = false
       if (wsRef.current) {
         wsRef.current.onopen = null
@@ -153,9 +157,9 @@ export function ChatPanel() {
       <MessageList messages={chatMessages} />
       {chatStreaming && (
         <div className="px-4 py-3 border-t border-d2-border">
-          {streamingRef.current ? (
+          {streamingText ? (
             <div className="text-sm text-d2-ink font-body">
-              <div className="whitespace-pre-wrap break-words">{streamingRef.current}</div>
+              <div className="whitespace-pre-wrap break-words">{streamingText}</div>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-d2-muted">

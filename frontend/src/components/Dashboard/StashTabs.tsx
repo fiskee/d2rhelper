@@ -14,6 +14,7 @@ export function StashTabs({ tabs }: { tabs: SharedStashTab[] }) {
   }
 
   const tab = tabs[activeTab]
+  const sortedItems = tab ? [...tab.items].sort((a, b) => a.y - b.y || a.x - b.x) : []
 
   return (
     <div>
@@ -34,7 +35,7 @@ export function StashTabs({ tabs }: { tabs: SharedStashTab[] }) {
         ))}
       </div>
       {tab && (
-        <ItemTable items={tab.items} title={`Shared Stash Tab ${tab.index + 1} — ${tab.gold.toLocaleString()} gold · ${tab.items.length}/${tab.item_count} items`} />
+        <ItemTable items={sortedItems} title={`Shared Stash Tab ${tab.index + 1} — ${tab.gold.toLocaleString()} gold · ${tab.items.length}/${tab.item_count} items`} />
       )}
     </div>
   )

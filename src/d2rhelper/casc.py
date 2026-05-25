@@ -385,12 +385,14 @@ def find_d2_save_files(extension: str | None = None) -> list[Path]:
         roots = [root for root in roots if root not in broad_windows_roots]
 
     glob_pattern = f"*.{extension}" if extension else "*.d2s"
+    seen: set[Path] = set()
     for root in roots:
         if not root.is_dir():
             continue
         try:
             for found in root.rglob(glob_pattern):
-                if found.is_file():
+                if found.is_file() and found not in seen:
+                    seen.add(found)
                     files.append(found)
         except PermissionError:
             continue
@@ -403,7 +405,8 @@ def find_d2_save_files(extension: str | None = None) -> list[Path]:
             continue
         try:
             for found in root.rglob(glob_pattern):
-                if found.is_file():
+                if found.is_file() and found not in seen:
+                    seen.add(found)
                     files.append(found)
         except PermissionError:
             continue
@@ -417,3 +420,33 @@ def find_latest_save_file(extension: str) -> Path | None:
         return None
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return files[0]
+
+
+def find_local_character_file() -> Path | None:
+    return find_latest_save_file("d2s")
+
+
+def find_local_shared_stash_file() -> Path | None:
+    candidate = find_latest_save_file("d2i")
+    if candidate and "SharedStash" in candidate.name:
+        return candidate
+
+    files = [f for f in find_d2_save_files("d2i") if "SharedStash" in f.name]
+    if not files:
+        return None
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0]
+
+
+def find_all_character_files() -> list:
+    from d2rhelper.models import CharacterInfo
+    from d2rhelper.parser import CharacterParser
+
+    char_paths = find_d2_save_files("d2s")
+    char_paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    results: list = []
+    for p in char_paths:
+        info = CharacterParser.read_character_info(p)
+        if info is not None:
+            results.append(CharacterInfo(**info))
+    return results

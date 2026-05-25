@@ -8,8 +8,8 @@ type View = 'dashboard' | 'search' | 'chat' | 'sets'
 const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: '◆' },
   { view: 'search', label: 'Search', icon: '⌕' },
-  { view: 'chat', label: 'Chat', icon: '💬' },
   { view: 'sets', label: 'Sets', icon: '◈' },
+  { view: 'chat', label: 'Chat', icon: '💬' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {

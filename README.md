@@ -1,6 +1,6 @@
 # d2rhelper
 
-This is mostly built as a personal project to test opensource LLMs.
+This is mostly built as a personal project to test open source LLMs.
 
 Parse Diablo II: Resurrected offline save files. Features a React web frontend with instant item search across character/stash, equipment dashboard, and a streaming Gemini chat assistant.
 

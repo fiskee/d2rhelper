@@ -36,6 +36,14 @@ function App() {
     state.fetchChatsFromBackend()
   }, [init])
 
+  useEffect(() => {
+    if (!init) return
+    const interval = setInterval(() => {
+      useAppStore.getState().refreshCharacter()
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [init])
+
   return (
     <AppShell>
       {view === 'dashboard' && character && (

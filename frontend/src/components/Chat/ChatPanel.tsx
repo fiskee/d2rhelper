@@ -63,23 +63,9 @@ export function ChatPanel() {
     includeAllCharactersInChat,
     setIncludeAllCharactersInChat,
     characterCache,
-    createChat,
     addMessageToChat,
     setChatStreaming,
   } = useAppStore()
-
-  const [hydrated, setHydrated] = useState(useAppStore.persist.hasHydrated())
-
-  useEffect(() => {
-    const unsub = useAppStore.persist.onFinishHydration(() => setHydrated(true))
-    return unsub
-  }, [])
-
-  useEffect(() => {
-    if (hydrated && chats.length === 0) {
-      createChat()
-    }
-  }, [hydrated, chats.length, createChat])
 
   const activeChat = useMemo(
     () => chats.find((c) => c.id === activeChatId) ?? null,

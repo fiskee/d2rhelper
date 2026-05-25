@@ -105,6 +105,7 @@ interface AppState {
   setItemIndex: (idx: Record<string, ParsedItem[]>) => void
   setIdIndex: (idx: Record<string, ParsedItem>) => void
   fetchChatsFromBackend: () => Promise<void>
+  refreshCharacter: () => Promise<void>
 
   setData: SetData[] | null
   fetchSetData: () => Promise<void>
@@ -326,6 +327,28 @@ export const useAppStore = create<AppState>()(
           set({ setData: data })
         } catch {
           // keep stale data if any
+        }
+      },
+
+      refreshCharacter: async () => {
+        const state = get()
+        const path = state.activeCharacterPath
+        if (!path) return
+        try {
+          const sp = state.stashPath
+          const result = await parseCharacter(path, sp ?? undefined)
+          const character = result.character
+          const tabs = result.stash_tabs
+          const newCache = { ...get().characterCache, [path]: character }
+          const allItems = deriveAllItems(newCache, tabs, path, get().searchAllCharacters)
+          set({
+            characterCache: newCache,
+            stashTabs: tabs,
+            character,
+            allItems,
+          })
+        } catch {
+          // file temporarily unreadable, keep stale data
         }
       },
     }),

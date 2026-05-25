@@ -34,6 +34,7 @@ app.add_middleware(
 _game_data: GameData | None = None
 _autocomplete_cache: list[str] | None = None
 _parse_cache: dict[str, dict[str, Any]] = {}
+_parse_mtime: dict[str, float] = {}
 
 
 def get_game_data() -> GameData:
@@ -84,7 +85,13 @@ class ParseRequest(BaseModel):
 
 def _parse_files(character_path: str, stash_path: str | None = None) -> dict[str, Any]:
     cache_key = f"{character_path}::{stash_path or ''}"
-    if cache_key in _parse_cache:
+
+    try:
+        char_mtime = os.path.getmtime(character_path)
+    except OSError:
+        char_mtime = 0
+
+    if cache_key in _parse_cache and _parse_mtime.get(cache_key) == char_mtime:
         return _parse_cache[cache_key]
 
     character = CharacterParser().parse_file(character_path)
@@ -100,6 +107,7 @@ def _parse_files(character_path: str, stash_path: str | None = None) -> dict[str
         "stash_tabs": [tab.model_dump(mode="json") for tab in tabs],
     }
     _parse_cache[cache_key] = result
+    _parse_mtime[cache_key] = char_mtime
     return result
 
 
@@ -346,14 +354,6 @@ async def chat_websocket(ws: WebSocket) -> None:
                     pass
                 chat_id = context_data.get("chat_id")
 
-                if chat_id and not store.chat_exists(chat_id):
-                    character = context_data.get("character", {})
-                    store.create_chat(
-                        chat_id=chat_id,
-                        character_type=character.get("character_type") if isinstance(character, dict) else None,
-                        character_name=character.get("name") if isinstance(character, dict) else None,
-                    )
-
                 system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
 
                 if chat_id:
@@ -386,6 +386,8 @@ async def chat_websocket(ws: WebSocket) -> None:
                     )
 
                 if chat_id:
+                    if not store.chat_exists(chat_id):
+                        store.create_chat(chat_id=chat_id)
                     store.add_message(chat_id, "user", payload)
 
                 response_text = ""

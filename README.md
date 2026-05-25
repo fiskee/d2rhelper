@@ -1,151 +1,38 @@
 # d2rhelper
 
-This is mostly built as a personal project to test open source LLMs.
+Parse and explore your Diablo II: Resurrected offline save files.
 
-Parse Diablo II: Resurrected offline save files. Features a React web frontend with instant item search across multiple characters and stash, equipment dashboard, and a streaming Gemini chat assistant.
+Browse character gear, search items across all characters and stash, track set item completion, and chat with an AI assistant about builds and farming strategies.
 
-Inspired by [d2rsavegameparser](https://github.com/Paladijn/d2rsavegameparser/). CASC extraction powered by [CascLib](https://github.com/ladislav-zezula/CascLib).
+## Quick start
 
-All D2R game data tables (items, skills, runewords, properties, etc.) are extracted from the game's CASC archives into a SQLite database at `src/d2rhelper/data/game.db` via the included extraction script.
-
-## Setup
+You need [Python 3.12+](https://www.python.org/downloads/), [git](https://git-scm.com/downloads), and a local Diablo II: Resurrected installation.
 
 ```bash
-uv sync
+git clone https://github.com/fiskee/d2rhelper.git
+cd d2rhelper
+bash scripts/setup.sh
 ```
 
-## Extract game data files
+On Windows use `scripts\setup.bat`.
 
-Build the SQLite database from D2R's CASC archives. This step requires a local Diablo II: Resurrected installation.
+The setup script installs uv, syncs dependencies, extracts game data, and copies `.env.example` to `.env`. After it finishes, get a free API key at [Google AI Studio](https://aistudio.google.com/apikey), add it to the `.env` file, then:
 
 ```bash
-uv run python scripts/extract_txt.py
-```
-
-The script auto-detects your D2R installation. It searches in order:
-
-1. `$D2R_PATH` environment variable (or `--d2r-path`)
-2. Windows native install paths (`C:/Program Files (x86)`, `C:/Program Files`) when running on Windows
-3. Steam library paths (Linux, Windows Steam, Proton compatdata)
-4. Wine prefix directories (`~/.wine`, `~/.local/share/wineprefixes`)
-5. Fallback: `find` from `$HOME`
-
-Save-file auto-detection prefers likely save folders first (native Windows `%USERPROFILE%/Saved Games/Diablo II Resurrected`, then Proton/Wine roots), and only falls back to broad `C:/` or `D:/` recursive scan on Windows if no saves are found.
-
-CascLib shared libraries for Linux (`.so`) and Windows (`.dll`) are included in the project. To rebuild them:
-
-**Linux / macOS (native):**
-```bash
-bash scripts/build_casclib.sh
-```
-
-**Windows (native):**
-```bat
-scripts\build_casclib.bat
-```
-
-**Linux → Windows (cross-compile):**
-```bash
-bash scripts/build_casclib.sh windows
-```
-
-Build requirements:
-
-| Target                 | Requirements                                                   |
-|------------------------|----------------------------------------------------------------|
-| Linux native           | `git`, `cmake`, `gcc`                                          |
-| macOS native           | `git`, `cmake`, Xcode Command Line Tools                       |
-| Windows native         | `git`, `cmake`, Visual Studio (MSVC) or MinGW                  |
-| Windows cross-compile  | `git`, `cmake`, `x86_64-w64-mingw32-gcc` (mingw-w64)          |
-
-If you need to rebuild the database after a game update, re-run the extraction script.
-
-## Development Commands
-
-Backend lint:
-
-```bash
-uv run ruff check src tests
-```
-
-Backend tests:
-
-```bash
-uv run pytest -q
-```
-
-Frontend setup:
-
-```bash
-cd frontend && npm install
-```
-
-Frontend typecheck and build:
-
-```bash
-cd frontend && npm run build
-```
-
-## Launch the full app
-
-Start the API server (serves the React frontend if built, or API-only for dev):
-
-```bash
-cp .env.example .env
-# Edit .env to add your GEMINI_API_KEY (required for chat)
-
 uv run d2rhelper
 ```
 
-Opens at `http://127.0.0.1:8000`. Click **Auto-detect** to find your D2R characters, then select one from the dropdown. The sidebar also has a manual path fallback.
+Open **http://127.0.0.1:8000** in your browser.
 
-For development with hot-reload on both sides:
+## Features
 
-```bash
-# Terminal 1 — API server
-uv run d2rhelper --reload
+- **Dashboard** — character stats, 12-slot equipment grid, mercenary gear, inventory, belt, personal stash, and shared stash tabs
+- **Search** — instant item search with word-boundary ranking, autocomplete suggestions, and an option to search across all loaded characters
+- **Sets** — track set item completion across all characters and stash, see which pieces you own and where they are (equipped, inventory, personal stash, shared stash)
+- **Chat** — AI assistant powered by Gemini that knows your characters, items, and stash. Ask about builds, farming strategies, runewords, and gear upgrades. Toggle to include all characters in a single chat session
+- **Multiple characters** — switch between characters, search or compare across all loaded saves
+- **Session persistence** — your selected character, search queries, chat history, and view state survive page reloads
 
-# Terminal 2 — Vite dev server (proxies /api to the backend)
-cd frontend && npm run dev
-```
+## Credits
 
-The Vite dev server runs on `http://localhost:5173`.
-
-## Architecture
-
-### Backend (Python)
-
-Game data is stored in a SQLite database (`src/d2rhelper/data/game.db`) built at extraction time. All lookups - skills, items, runewords, properties, player classes - go through `GameData` in `src/d2rhelper/game_data.py`.
-
-The item parsing pipeline is split into focused components:
-
-- `src/d2rhelper/item_parser.py` - orchestration and public parser API (`ItemParser`)
-- `src/d2rhelper/item_recovery.py` - bitstream recovery and re-sync heuristics
-- `src/d2rhelper/item_properties.py` - item property decoding/formatting/combining
-- `src/d2rhelper/item_rules.py` - item metadata rules (requirements, names, damage, runewords)
-
-Character and stash parsing entry points:
-
-- `src/d2rhelper/parser.py` - `.d2s` character parsing
-- `src/d2rhelper/shared_stash_parser.py` - `.d2i` shared stash parsing
-
-API server (FastAPI):
-
-- `src/d2rhelper/api.py` - REST + WebSocket endpoints
-- `src/d2rhelper/cli.py` — CLI entrypoint that starts the API server
-
-### Frontend (React + Vite + TypeScript + Tailwind CSS v4)
-
-Located in `frontend/`. State management via Zustand. Supports multiple characters — auto-detect all your save files, switch between them via sidebar dropdown, and optionally search across all loaded characters.
-
-- **Dashboard** — character info, 12-slot equipment grid, mercenary grid, inventory, stash tabs
-- **Search** — instant client-side search across items with word-boundary ranking, filter suggestions from your actual items, responsive card grid layout
-- **Chat** — WebSocket streaming Gemini chat with markdown rendering, auto-loads character context
-
-## CLI
-
-```bash
-uv run d2rhelper --help
-```
-
-Starts the API server on `http://127.0.0.1:8000`. Options: `--host`, `--port`, `--reload`.
+Inspired by [d2rsavegameparser](https://github.com/Paladijn/d2rsavegameparser/). CASC extraction powered by [CascLib](https://github.com/ladislav-zezula/CascLib).

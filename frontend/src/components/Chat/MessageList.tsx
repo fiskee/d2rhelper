@@ -52,13 +52,13 @@ function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown
       components={{
-        h1: ({ children }) => <h1 className="text-lg font-d2 text-d2-accent mt-3 mb-1">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-base font-d2 text-d2-accent mt-3 mb-1">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-d2 font-semibold text-d2-ink mt-2 mb-1">{children}</h3>,
-        p: ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
-        ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
-        li: ({ children }) => <li className="text-sm">{children}</li>,
+        h1: ({ children }) => <h1 className="text-lg font-d2 text-d2-accent" style={{ marginTop: 16, marginBottom: 10 }}>{children}</h1>,
+        h2: ({ children }) => <h2 className="text-base font-d2 text-d2-accent" style={{ marginTop: 16, marginBottom: 10 }}>{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-d2 font-semibold text-d2-ink" style={{ marginTop: 14, marginBottom: 8 }}>{children}</h3>,
+        p: ({ children }) => <p style={{ marginTop: 10, marginBottom: 10, lineHeight: 1.7 }}>{children}</p>,
+        ul: ({ children }) => <ul className="list-disc list-inside" style={{ marginTop: 10, marginBottom: 10 }}>{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside" style={{ marginTop: 10, marginBottom: 10 }}>{children}</ol>,
+        li: ({ children }) => <li className="text-sm" style={{ marginBottom: 4 }}>{children}</li>,
         strong: ({ children }) => <strong className="font-semibold text-d2-ink">{children}</strong>,
         em: ({ children }) => <em className="italic text-d2-ink/80">{children}</em>,
         code: ({ className, children, ...props }) => {
@@ -71,14 +71,14 @@ function MarkdownContent({ content }: { content: string }) {
             )
           }
           return (
-            <code className="block bg-d2-bg rounded p-3 text-xs font-mono text-d2-ink overflow-x-auto my-2" {...props}>
+            <code className="block bg-d2-bg rounded p-3 text-xs font-mono text-d2-ink overflow-x-auto" style={{ marginTop: 10, marginBottom: 10 }} {...props}>
               {children}
             </code>
           )
         },
         pre: ({ children }) => <>{children}</>,
         table: ({ children }) => (
-          <div className="overflow-x-auto my-2">
+          <div className="overflow-x-auto" style={{ marginTop: 10, marginBottom: 10 }}>
             <table className="w-full border-collapse text-xs">{children}</table>
           </div>
         ),
@@ -88,9 +88,9 @@ function MarkdownContent({ content }: { content: string }) {
         ),
         td: ({ children }) => <td className="border border-d2-border px-2 py-1">{children}</td>,
         blockquote: ({ children }) => (
-          <blockquote className="border-l-3 border-d2-accent/40 pl-3 my-2 italic text-d2-muted">{children}</blockquote>
+          <blockquote className="border-l-3 border-d2-accent/40 pl-3 italic text-d2-muted" style={{ marginTop: 10, marginBottom: 10 }}>{children}</blockquote>
         ),
-        hr: () => <hr className="border-d2-border my-3" />,
+        hr: () => <hr className="border-d2-border" style={{ marginTop: 12, marginBottom: 12 }} />,
         a: ({ href, children }) => {
           if (href && href.startsWith('#item:')) {
             const itemType = href.slice('#item:'.length)
@@ -130,14 +130,14 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 scrollbar-thin space-y-3">
+    <div className="flex-1 overflow-y-auto p-4 scrollbar-thin space-y-4">
       {messages.map((msg, i) => (
         <div
           key={i}
           className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
         >
           <div
-            className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
+              className={`max-w-[80%] rounded-lg px-4 py-3 text-sm ${
               msg.role === 'user'
                 ? 'bg-d2-accent text-d2-bg font-body'
                 : 'bg-d2-surface border border-d2-border text-d2-ink font-body'

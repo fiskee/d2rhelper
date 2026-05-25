@@ -85,3 +85,58 @@ export function createChatWebSocket(onMessage: (text: string, done: boolean) => 
 
   return ws
 }
+
+export interface ChatSummary {
+  id: string
+  title: string
+  character_path: string | null
+  character_type: string | null
+  character_name: string | null
+  created_at: number
+  updated_at: number
+}
+
+export async function listChats(): Promise<ChatSummary[]> {
+  const res = await fetch(`${API_BASE}/chats`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function deleteChatApi(chatId: string): Promise<void> {
+  await fetch(`${API_BASE}/chats/${encodeURIComponent(chatId)}`, { method: 'DELETE' })
+}
+
+export interface DBAttrs {
+  name: string
+  quality: 'unique' | 'set' | 'runeword' | 'base'
+  base_name?: string | null
+  base_code?: string | null
+  set_name?: string | null
+  base_hint?: string | null
+  level_req?: number | null
+  runes?: string[]
+  type?: string | null
+  code?: string | null
+  properties: string[]
+}
+
+const itemLookupCache = new Map<string, DBAttrs | null>()
+
+export async function lookupItem(name: string, itemType?: string): Promise<DBAttrs | null> {
+  const key = `${itemType ?? ''}:${name.toLowerCase()}`
+  if (itemLookupCache.has(key)) return itemLookupCache.get(key) ?? null
+  const params = new URLSearchParams({ name })
+  if (itemType) params.set('type', itemType)
+  const res = await fetch(`${API_BASE}/items/lookup?${params}`)
+  if (!res.ok) {
+    itemLookupCache.set(key, null)
+    return null
+  }
+  const data = await res.json()
+  if (!data) {
+    itemLookupCache.set(key, null)
+    return null
+  }
+  itemLookupCache.set(key, data)
+  return data
+}

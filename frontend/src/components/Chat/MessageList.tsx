@@ -1,8 +1,54 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { ChatMessage } from '../../types'
+import { useAppStore } from '../../store/appStore'
+import { lookupItem } from '../../api/client'
+import type { DBAttrs } from '../../api/client'
+import { ItemLink } from './ItemTooltip'
+
+function ItemLinkResolver({ name, itemType }: { name: string; itemType: string }) {
+  const itemIndex = useAppStore((s) => s.itemIndex)
+  const [dbItem, setDbItem] = useState<DBAttrs | null | undefined>(undefined)
+  const matches = itemType === '' ? (itemIndex[name.toLowerCase()] ?? []) : []
+
+  useEffect(() => {
+    if (itemType !== '') {
+      let cancelled = false
+      lookupItem(name, itemType).then((data) => {
+        if (!cancelled) setDbItem(data)
+      })
+      return () => { cancelled = true }
+    }
+    if (itemType === '' && matches.length === 0) {
+      let cancelled = false
+      lookupItem(name).then((data) => {
+        if (!cancelled) setDbItem(data)
+      })
+      return () => { cancelled = true }
+    }
+  }, [name, itemType, matches.length])
+
+  // Type specified — API only
+  if (itemType !== '') {
+    if (dbItem === undefined) return <span>{name}</span>
+    if (dbItem) return <ItemLink name={name} dbItem={dbItem} />
+    return <span>{name}</span>
+  }
+
+  // Auto — check player items first
+  if (matches.length === 1) {
+    return <ItemLink name={name} playerItem={matches[0]} />
+  }
+
+  if (matches.length > 1) return <span>{name}</span>
+
+  if (dbItem === undefined) return <span>{name}</span>
+  if (dbItem) return <ItemLink name={name} dbItem={dbItem} />
+  return <span>{name}</span>
+}
 
 function MarkdownContent({ content }: { content: string }) {
+  const processed = content.replace(/\]\(item:/g, '](#item:')
   return (
     <ReactMarkdown
       components={{
@@ -45,14 +91,22 @@ function MarkdownContent({ content }: { content: string }) {
           <blockquote className="border-l-3 border-d2-accent/40 pl-3 my-2 italic text-d2-muted">{children}</blockquote>
         ),
         hr: () => <hr className="border-d2-border my-3" />,
-        a: ({ href, children }) => (
-          <a href={href} className="text-d2-accent underline hover:text-d2-accent-hover" target="_blank" rel="noopener noreferrer">
-            {children}
-          </a>
-        ),
+        a: ({ href, children }) => {
+          if (href && href.startsWith('#item:')) {
+            const itemType = href.slice('#item:'.length)
+            const name = String(children ?? '')
+            if (!name) return null
+            return <ItemLinkResolver name={name} itemType={itemType} />
+          }
+          return (
+            <a href={href} className="text-d2-accent underline hover:text-d2-accent-hover" target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          )
+        },
       }}
     >
-      {content}
+      {processed}
     </ReactMarkdown>
   )
 }

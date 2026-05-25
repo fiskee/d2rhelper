@@ -10,6 +10,9 @@ system_prompt.txt
 src/d2rhelper/data/game.db
 src/d2rhelper/data/game.db-shm
 src/d2rhelper/data/game.db-wal
+src/d2rhelper/data/chat.db
+src/d2rhelper/data/chat.db-shm
+src/d2rhelper/data/chat.db-wal
 .ruff_cache/
 .venv/
 frontend/node_modules/

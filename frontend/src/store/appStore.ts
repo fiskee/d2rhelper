@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { get, set, del } from 'idb-keyval'
 import type { StateStorage } from 'zustand/middleware'
-import { parseCharacter, listCharacters, fetchSets } from '../api/client'
+import { parseCharacter, listCharacters, fetchSets, listChats, deleteChatApi } from '../api/client'
 import type { Chat, ChatMessage, CharacterInfo, D2Character, ParsedItem, SetData, SharedStashTab } from '../types'
 
 type View = 'dashboard' | 'search' | 'chat' | 'sets'
@@ -94,12 +94,15 @@ interface AppState {
   activeChatId: string | null
   chatStreaming: boolean
   includeAllCharactersInChat: boolean
+  itemIndex: Record<string, ParsedItem[]>
   createChat: () => void
   deleteChat: (id: string) => void
   setActiveChat: (id: string) => void
   addMessageToChat: (chatId: string, msg: ChatMessage) => void
   setChatStreaming: (s: boolean) => void
   setIncludeAllCharactersInChat: (v: boolean) => void
+  setItemIndex: (idx: Record<string, ParsedItem[]>) => void
+  fetchChatsFromBackend: () => Promise<void>
 
   setData: SetData[] | null
   fetchSetData: () => Promise<void>
@@ -149,6 +152,34 @@ export const useAppStore = create<AppState>()(
           })
         } catch (err) {
           set({ error: err instanceof Error ? err.message : 'Failed to list characters', loading: false })
+        }
+      },
+
+      fetchChatsFromBackend: async () => {
+        try {
+          const backendChats = await listChats()
+          if (backendChats.length === 0) return
+          const existing = get().chats
+          const existingIds = new Set(existing.map((c) => c.id))
+          const newChats = backendChats
+            .filter((bc) => !existingIds.has(bc.id))
+            .map((bc) => ({
+              id: bc.id,
+              title: bc.title,
+              messages: [],
+              characterPath: bc.character_path,
+              characterType: bc.character_type,
+              characterName: bc.character_name,
+              createdAt: bc.created_at,
+              updatedAt: bc.updated_at,
+            }))
+          if (newChats.length > 0) {
+            set((s) => ({
+              chats: [...newChats, ...s.chats],
+            }))
+          }
+        } catch {
+          // backend unavailable, use local data
         }
       },
 
@@ -220,6 +251,7 @@ export const useAppStore = create<AppState>()(
       activeChatId: null,
       chatStreaming: false,
       includeAllCharactersInChat: false,
+      itemIndex: {},
 
       createChat: () => {
         const chat = makeChat(get())
@@ -243,6 +275,7 @@ export const useAppStore = create<AppState>()(
             : s.activeChatId
           return { chats, activeChatId }
         })
+        deleteChatApi(id).catch(() => {})
       },
 
       setActiveChat: (id) => {
@@ -278,6 +311,8 @@ export const useAppStore = create<AppState>()(
       setChatStreaming: (chatStreaming) => set({ chatStreaming }),
 
       setIncludeAllCharactersInChat: (includeAllCharactersInChat) => set({ includeAllCharactersInChat }),
+
+      setItemIndex: (itemIndex) => set({ itemIndex }),
 
       setData: null,
       fetchSetData: async () => {

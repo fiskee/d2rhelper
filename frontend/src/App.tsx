@@ -32,6 +32,8 @@ function App() {
         s.parseAndSetActive(s.activeCharacterPath)
       }
     })
+
+    state.fetchChatsFromBackend()
   }, [init])
 
   return (

@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from d2rhelper.chat_store import get_chat_store
 from d2rhelper.game_data import GameData
 from d2rhelper.models import ItemQuality
 from d2rhelper.parser import CharacterParser
@@ -323,9 +324,11 @@ async def chat_websocket(ws: WebSocket) -> None:
 
     model_name = (os.getenv("GEMINI_MODEL") or "gemini-3.5-flash").strip() or "gemini-3.5-flash"
     client = genai.Client(api_key=api_key)
+    store = get_chat_store()
 
     context_json = "{}"
     chat = None
+    chat_id: str | None = None
 
     try:
         while True:
@@ -336,6 +339,21 @@ async def chat_websocket(ws: WebSocket) -> None:
 
             if msg_type == "context":
                 context_json = payload
+                context_data: dict[str, Any] = {}
+                try:
+                    context_data = json.loads(payload)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                chat_id = context_data.get("chat_id")
+
+                if chat_id and not store.chat_exists(chat_id):
+                    character = context_data.get("character", {})
+                    store.create_chat(
+                        chat_id=chat_id,
+                        character_type=character.get("character_type") if isinstance(character, dict) else None,
+                        character_name=character.get("name") if isinstance(character, dict) else None,
+                    )
+
                 system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
                 chat = client.chats.create(
                     model=model_name,
@@ -343,6 +361,13 @@ async def chat_websocket(ws: WebSocket) -> None:
                         system_instruction=system_instruction,
                     ),
                 )
+
+                if chat_id:
+                    history = store.get_messages(chat_id)
+                    for msg in history:
+                        if msg["role"] == "user":
+                            chat.send_message(msg["content"])
+
                 await ws.send_text(json.dumps({"text": "Ready. Ask me about your character!", "done": True}))
 
             elif msg_type == "message":
@@ -355,11 +380,19 @@ async def chat_websocket(ws: WebSocket) -> None:
                         ),
                     )
 
+                if chat_id:
+                    store.add_message(chat_id, "user", payload)
+
+                response_text = ""
                 response = chat.send_message_stream(payload)
                 for chunk in response:
                     if chunk.text:
+                        response_text += chunk.text
                         await ws.send_text(json.dumps({"text": chunk.text, "done": False}))
                 await ws.send_text(json.dumps({"text": "", "done": True}))
+
+                if chat_id and response_text:
+                    store.add_message(chat_id, "assistant", response_text)
 
     except WebSocketDisconnect:
         pass
@@ -368,6 +401,343 @@ async def chat_websocket(ws: WebSocket) -> None:
             await ws.send_text(json.dumps({"text": f"Error: {exc}", "done": True}))
         except Exception:
             pass
+
+
+@app.get("/api/chats")
+async def list_chats() -> JSONResponse:
+    return JSONResponse(content=get_chat_store().list_chats())
+
+
+@app.delete("/api/chats/{chat_id}")
+async def delete_chat(chat_id: str) -> JSONResponse:
+    store = get_chat_store()
+    if not store.chat_exists(chat_id):
+        return JSONResponse(content={"error": "Chat not found"}, status_code=404)
+    store.delete_chat(chat_id)
+    return JSONResponse(content={"ok": True})
+
+
+def _resolve_property_display(
+    tooltip: str,
+    param_desc: str,
+    param: str,
+    min_val: str,
+    max_val: str,
+) -> str:
+    display = tooltip
+
+    if "[Skill]" in display and param:
+        display = display.replace("[Skill]", param)
+
+    replacement = ""
+    if min_val:
+        if max_val and max_val != min_val:
+            replacement = f"{min_val}-{max_val}"
+        else:
+            replacement = min_val
+    elif param and "/" in param_desc and "per Level" in param_desc:
+        parts = param_desc.split("/")
+        divisor_str = parts[1].strip().split()[0] if len(parts) > 1 else "1"
+        try:
+            ratio = float(param) / float(divisor_str)
+            formatted = f"{ratio:.4f}".rstrip("0").rstrip(".")
+            replacement = f"[+{formatted} per Level]"
+        except (ValueError, ZeroDivisionError):
+            replacement = param_desc
+    elif param:
+        replacement = param
+
+    if replacement:
+        display = display.replace("#", replacement, 1)
+
+    return display
+
+
+def _get_base_name(gd: Any, code: str) -> str | None:
+    for table in ("weapons", "armor", "misc"):
+        row = gd.conn.execute(
+            f'SELECT name FROM "{table}" WHERE code = ?',
+            (code,),
+        ).fetchone()
+        if row:
+            return row["name"]
+    return None
+
+
+def _get_rune_name(gd: Any, code: str) -> str:
+    row = gd.conn.execute(
+        "SELECT name FROM misc WHERE code = ? AND name LIKE '% Rune'",
+        (code,),
+    ).fetchone()
+    if row:
+        raw = row["name"]
+        if raw.endswith(" Rune"):
+            return raw[:-5]
+        return raw
+    return code
+
+
+def _format_runeword(row: dict[str, Any], gd: Any) -> dict[str, Any]:
+    codes = [row.get(f"t1code{i}", "") for i in range(1, 8)]
+    params = [row.get(f"t1param{i}", "") or "" for i in range(1, 8)]
+    mins = [row.get(f"t1min{i}", "") or "" for i in range(1, 8)]
+    maxs = [row.get(f"t1max{i}", "") or "" for i in range(1, 8)]
+
+    properties: list[str] = []
+    for i in range(7):
+        code = codes[i]
+        if not code:
+            continue
+        prop_row = gd.conn.execute(
+            "SELECT x_tooltip, x_parameter FROM properties WHERE code = ?",
+            (code,),
+        ).fetchone()
+        if not prop_row or not prop_row["x_tooltip"]:
+            continue
+        display = _resolve_property_display(
+            prop_row["x_tooltip"],
+            prop_row["x_parameter"] or "",
+            params[i],
+            mins[i],
+            maxs[i],
+        )
+        if display:
+            properties.append(display)
+
+    runes: list[str] = []
+    for i in range(1, 7):
+        rc = row.get(f"rune{i}", "")
+        if rc:
+            rune_name = _get_rune_name(gd, rc)
+            runes.append(rune_name)
+
+    return {
+        "name": row.get("x_rune_name", ""),
+        "quality": "runeword",
+        "base_hint": f'{len(runes)}-Socket Item',
+        "runes": runes,
+        "properties": properties,
+    }
+
+
+def _format_unique(row: dict[str, Any], gd: Any) -> dict[str, Any]:
+    codes = [row.get(f"prop{i}", "") for i in range(1, 13)]
+    params = [row.get(f"par{i}", "") or "" for i in range(1, 13)]
+    mins = [row.get(f"min{i}", "") or "" for i in range(1, 13)]
+    maxs = [row.get(f"max{i}", "") or "" for i in range(1, 13)]
+
+    properties: list[str] = []
+    for i in range(12):
+        code = codes[i]
+        if not code:
+            continue
+        prop_row = gd.conn.execute(
+            "SELECT x_tooltip, x_parameter FROM properties WHERE code = ?",
+            (code,),
+        ).fetchone()
+        if not prop_row or not prop_row["x_tooltip"]:
+            continue
+        display = _resolve_property_display(
+            prop_row["x_tooltip"],
+            prop_row["x_parameter"] or "",
+            params[i],
+            mins[i],
+            maxs[i],
+        )
+        if display:
+            properties.append(display)
+
+    base_code = row.get("code", "")
+    base_name = _get_base_name(gd, base_code)
+
+    return {
+        "name": row.get("index", ""),
+        "quality": "unique",
+        "base_name": base_name,
+        "base_code": base_code,
+        "level_req": int(row["lvl_req"]) if row.get("lvl_req") else None,
+        "properties": properties,
+    }
+
+
+def _format_setitem(row: dict[str, Any], gd: Any) -> dict[str, Any]:
+    codes = [row.get(f"prop{i}", "") for i in range(1, 10)]
+    params = [row.get(f"par{i}", "") or "" for i in range(1, 10)]
+    mins = [row.get(f"min{i}", "") or "" for i in range(1, 10)]
+    maxs = [row.get(f"max{i}", "") or "" for i in range(1, 10)]
+
+    properties: list[str] = []
+    for i in range(9):
+        code = codes[i]
+        if not code:
+            continue
+        prop_row = gd.conn.execute(
+            "SELECT x_tooltip, x_parameter FROM properties WHERE code = ?",
+            (code,),
+        ).fetchone()
+        if not prop_row or not prop_row["x_tooltip"]:
+            continue
+        display = _resolve_property_display(
+            prop_row["x_tooltip"],
+            prop_row["x_parameter"] or "",
+            params[i],
+            mins[i],
+            maxs[i],
+        )
+        if display:
+            properties.append(display)
+
+    base_code = row.get("item", "")
+    base_name = _get_base_name(gd, base_code)
+    set_name = row.get("set", "")
+
+    return {
+        "name": row.get("index", ""),
+        "quality": "set",
+        "set_name": set_name,
+        "base_name": base_name,
+        "base_code": base_code,
+        "level_req": int(row["lvl_req"]) if row.get("lvl_req") else None,
+        "properties": properties,
+    }
+
+
+def _format_base_item(row: dict[str, Any], table: str, gd: Any) -> dict[str, Any]:
+    props: list[str] = []
+    if table == "weapons":
+        min_d = row.get("mindam")
+        max_d = row.get("maxdam")
+        if min_d and max_d:
+            props.append(f"Damage: {min_d}-{max_d}")
+        speed = row.get("speed")
+        if speed:
+            props.append(f"Speed: {speed}")
+    elif table == "armor":
+        min_ac = row.get("minac")
+        max_ac = row.get("maxac")
+        if min_ac and max_ac:
+            props.append(f"Defense: {min_ac}-{max_ac}")
+        speed = row.get("speed")
+        if speed:
+            props.append(f"Speed: {speed}")
+    elif table == "misc":
+        speed = row.get("speed")
+        if speed:
+            props.append(f"Speed: {speed}")
+
+    reqs: list[str] = []
+    if row.get("levelreq"):
+        reqs.append(f"Lvl {row['levelreq']}")
+    if row.get("reqstr"):
+        reqs.append(f"Str {row['reqstr']}")
+    if row.get("reqdex"):
+        reqs.append(f"Dex {row['reqdex']}")
+    if reqs:
+        props.append("Req: " + ", ".join(reqs))
+
+    sockets = row.get("gemsockets")
+    if sockets and sockets != "0":
+        props.append(f"Max Sockets: {sockets}")
+
+    return {
+        "name": row.get("name", ""),
+        "quality": "base",
+        "code": row.get("code", ""),
+        "type": row.get("type", ""),
+        "properties": props,
+    }
+
+
+def _query_base_item(gd: Any, table: str, q: str) -> dict[str, Any] | None:
+    common_cols = 'name, code, type, levelreq, reqstr, reqdex, gemsockets'
+    if table == "weapons":
+        cols = f'{common_cols}, mindam, maxdam, speed'
+    elif table == "armor":
+        cols = f'{common_cols}, minac, maxac, speed'
+    elif table == "misc":
+        cols = f'{common_cols}, speed'
+    else:
+        return None
+    row = gd.conn.execute(
+        f'SELECT {cols} FROM "{table}" WHERE LOWER("name") = ? AND "spawnable" = ?',
+        (q, "1"),
+    ).fetchone()
+    if row:
+        return dict(row)
+    return None
+
+
+@app.get("/api/items/lookup")
+async def lookup_item(name: str = "", type: str = "") -> JSONResponse:
+    if not name or len(name.strip()) < 2:
+        return JSONResponse(content=None)
+
+    gd = get_game_data()
+    q = name.strip().lower()
+    item_type = type.strip().lower()
+
+    if item_type in ("rw", "runeword"):
+        row = gd.conn.execute(
+            'SELECT * FROM runes WHERE LOWER("x_rune_name") = ? AND "complete" = ?',
+            (q, "1"),
+        ).fetchone()
+        if row:
+            return JSONResponse(content=_format_runeword(dict(row), gd))
+        return JSONResponse(content=None)
+
+    if item_type in ("unq", "unique"):
+        row = gd.conn.execute(
+            'SELECT * FROM uniqueitems WHERE LOWER("index") = ? AND "spawnable" = ?',
+            (q, "1"),
+        ).fetchone()
+        if row:
+            return JSONResponse(content=_format_unique(dict(row), gd))
+        return JSONResponse(content=None)
+
+    if item_type in ("set",):
+        row = gd.conn.execute(
+            'SELECT * FROM setitems WHERE LOWER("index") = ? AND "spawnable" = ?',
+            (q, "1"),
+        ).fetchone()
+        if row:
+            return JSONResponse(content=_format_setitem(dict(row), gd))
+        return JSONResponse(content=None)
+
+    if item_type in ("base",):
+        for table in ("weapons", "armor", "misc"):
+            row = _query_base_item(gd, table, q)
+            if row:
+                return JSONResponse(content=_format_base_item(row, table, gd))
+        return JSONResponse(content=None)
+
+    # Auto-detect: prioritized search
+    row = gd.conn.execute(
+        'SELECT * FROM runes WHERE LOWER("x_rune_name") = ? AND "complete" = ?',
+        (q, "1"),
+    ).fetchone()
+    if row:
+        return JSONResponse(content=_format_runeword(dict(row), gd))
+
+    row = gd.conn.execute(
+        'SELECT * FROM uniqueitems WHERE LOWER("index") = ? AND "spawnable" = ?',
+        (q, "1"),
+    ).fetchone()
+    if row:
+        return JSONResponse(content=_format_unique(dict(row), gd))
+
+    row = gd.conn.execute(
+        'SELECT * FROM setitems WHERE LOWER("index") = ? AND "spawnable" = ?',
+        (q, "1"),
+    ).fetchone()
+    if row:
+        return JSONResponse(content=_format_setitem(dict(row), gd))
+
+    for table in ("weapons", "armor", "misc"):
+        row = _query_base_item(gd, table, q)
+        if row:
+            return JSONResponse(content=_format_base_item(row, table, gd))
+
+    return JSONResponse(content=None)
 
 
 _frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"

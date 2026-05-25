@@ -3,8 +3,57 @@ import { useAppStore } from '../../store/appStore'
 import { createChatWebSocket } from '../../api/client'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
+import type { ParsedItem, D2Character, SharedStashTab } from '../../types'
+import { getItemDisplayName } from '../../types'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
+
+function buildItemIndex(
+  character: D2Character | null,
+  stashTabs: SharedStashTab[],
+  characterCache: Record<string, D2Character>,
+  includeAll: boolean,
+  activePath: string | null,
+): Record<string, ParsedItem[]> {
+  const index: Record<string, ParsedItem[]> = {}
+
+  function indexItems(items: ParsedItem[]) {
+    for (const item of items) {
+      const names: string[] = []
+      const display = getItemDisplayName(item)
+      if (display) names.push(display.toLowerCase())
+      if (item.item_name) names.push(item.item_name.toLowerCase())
+      if (item.runeword_name) names.push(item.runeword_name.toLowerCase())
+      if (item.unique_name) names.push(item.unique_name.toLowerCase())
+      if (item.set_name) names.push(item.set_name.toLowerCase())
+      if (item.code) names.push(item.code.toLowerCase())
+
+      for (const n of names) {
+        if (!index[n]) index[n] = []
+        index[n].push(item)
+      }
+    }
+  }
+
+  if (character) {
+    indexItems(character.items)
+    indexItems(character.mercenary.items)
+  }
+
+  for (const tab of stashTabs) {
+    indexItems(tab.items)
+  }
+
+  if (includeAll) {
+    for (const [path, char] of Object.entries(characterCache)) {
+      if (path === activePath) continue
+      indexItems(char.items)
+      indexItems(char.mercenary.items)
+    }
+  }
+
+  return index
+}
 
 export function ChatPanel() {
   const {
@@ -103,6 +152,7 @@ export function ChatPanel() {
       }
 
       const contextPayload: Record<string, unknown> = {
+        chat_id: chatId,
         character: serialiseCharacter(char),
         stash_tabs: state.stashTabs,
       }
@@ -118,6 +168,15 @@ export function ChatPanel() {
           contextPayload.other_characters = otherCharacters
         }
       }
+
+      const itemIndex = buildItemIndex(
+        char,
+        state.stashTabs,
+        state.characterCache,
+        state.includeAllCharactersInChat,
+        state.activeCharacterPath,
+      )
+      useAppStore.getState().setItemIndex(itemIndex)
 
       ws.send(JSON.stringify({ type: 'context', payload: JSON.stringify(contextPayload) }))
     }

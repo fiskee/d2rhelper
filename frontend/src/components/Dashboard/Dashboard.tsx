@@ -2,6 +2,9 @@ import { CharacterInfo } from './CharacterInfo'
 import { EquipmentGrid, MercenaryGrid } from './EquipmentGrid'
 import { ItemTable } from './ItemTable'
 import { StashTabs } from './StashTabs'
+import { QuestsPanel } from './QuestsPanel'
+import { WaypointsPanel } from './WaypointsPanel'
+import { SkillsPanel } from './SkillsPanel'
 
 import type { D2Character, SharedStashTab } from '../../types'
 
@@ -39,13 +42,34 @@ export function Dashboard({
     <div className="flex flex-col gap-4">
       <CharacterInfo character={character} />
 
+      <SkillsPanel skills={character.skills} skillPointsLeft={character.attributes.skill_points_left} />
+
+      <QuestsPanel quests={character.quest_data} />
+
+      <WaypointsPanel waypoints={character.waypoints} />
+
       <div className="bg-d2-surface border border-d2-border rounded-lg">
         <h2 className="px-4 pt-4 text-lg font-d2 text-d2-accent">Equipment</h2>
         <EquipmentGrid items={cats.equipped} />
       </div>
 
       <div className="bg-d2-surface border border-d2-border rounded-lg">
-        <h2 className="px-4 pt-4 text-lg font-d2 text-d2-accent">Mercenary</h2>
+        <div className="px-4 pt-4 flex items-center justify-between">
+          <h2 className="text-lg font-d2 text-d2-accent">Mercenary</h2>
+          <div className="flex gap-3 text-xs text-d2-muted font-mono">
+            {character.mercenary.hireling_name ? (
+              <>
+                <span className="text-d2-ink">{character.mercenary.hireling_name}{character.mercenary.hireling_subtype ? ` (${character.mercenary.hireling_subtype})` : ''}</span>
+                {character.mercenary.hireling_skills.length > 0 && (
+                  <span>{character.mercenary.hireling_skills.join(' / ')}</span>
+                )}
+              </>
+            ) : (
+              <span>Type: {character.mercenary.type_id}</span>
+            )}
+            <span>Exp: {character.mercenary.experience.toLocaleString()}</span>
+          </div>
+        </div>
         <MercenaryGrid items={character.mercenary.items} />
       </div>
 

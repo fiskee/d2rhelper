@@ -46,6 +46,9 @@ class Mercenary(BaseModel):
     name_id: int
     type_id: int
     experience: int
+    hireling_name: str | None = None
+    hireling_subtype: str | None = None
+    hireling_skills: list[str] = Field(default_factory=list)
     items: list[ParsedItem] = Field(default_factory=list)
 
 
@@ -78,6 +81,7 @@ class QuestData(BaseModel):
     den_of_evil: bool = False
     radament: bool = False
     golden_bird: bool = False
+    siege_completed: bool = False
     socket_quest_available: bool = False
     resistance_scroll: bool = False
 

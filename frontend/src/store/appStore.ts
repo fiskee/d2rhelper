@@ -353,8 +353,28 @@ export const useAppStore = create<AppState>()(
       },
     }),
     {
-      name: 'd2rhelper-chat-storage',
+      name: 'd2rhelper-chat-storage-v2',
       storage: createJSONStorage(() => idbStorage),
+      onRehydrateStorage: () => {
+        return () => {
+          const store = useAppStore.getState()
+          if (store.chats.length > 0) return
+          get('d2rhelper-chat-storage').then((raw) => {
+            if (!raw || typeof raw !== 'string') return
+            try {
+              const parsed = JSON.parse(raw)
+              const oldChats = parsed?.state?.chats
+              if (oldChats && oldChats.length > 0) {
+                const existingIds = new Set(store.chats.map((c: Chat) => c.id))
+                const newChats = oldChats.filter((c: Chat) => !existingIds.has(c.id))
+                if (newChats.length > 0) {
+                  useAppStore.setState({ chats: [...newChats, ...store.chats] })
+                }
+              }
+            } catch { /* ignore parse errors */ }
+          })
+        }
+      },
       partialize: (state) => {
         const nonEmptyChats = state.chats.filter((c) => c.messages.length > 0)
         const activeId = nonEmptyChats.some((c) => c.id === state.activeChatId)

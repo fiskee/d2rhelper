@@ -25,3 +25,7 @@
 ## Scope boundaries
 - Backend parsing/domain logic is concentrated in `parser.py`, `shared_stash_parser.py`, `item_parser.py`, `item_properties.py`, `item_recovery.py`, and `item_rules.py`.
 - `scripts/build_casclib.sh` / `.bat` rebuild bundled CascLib binaries (`libcasc.so`, `Casclib.dll`); do not touch unless working on CASC extraction/runtime loading.
+
+## Frontend persisted storage
+- The Zustand store persists state to IndexedDB via `idb-keyval` under the key `d2rhelper-chat-storage-v2` (`frontend/src/store/appStore.ts`).
+- Whenever the data schema changes (new fields added to models like `D2Character`, `Mercenary`, `QuestData`, etc. that are serialized into the store), bump the storage name suffix (e.g. `-v2` → `-v3`) to avoid crashes from stale cached data missing new fields.

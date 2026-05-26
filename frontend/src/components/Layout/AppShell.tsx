@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { CharacterPicker } from './CharacterPicker'
 import { ChatSidebar } from '../Chat/ChatSidebar'
@@ -16,6 +16,12 @@ const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { view, setView, character, loading, error, createChat } = useAppStore()
   const [warningsOpen, setWarningsOpen] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="flex h-screen bg-d2-bg">
@@ -73,9 +79,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {character && (
           <div className="p-3 border-t border-d2-border">
-            <div className="text-xs text-d2-muted font-body truncate">
-              {character.status.hardcore && <span className="text-red-400 mr-1">HC</span>}
-              {character.name} — {character.character_type} Lvl {character.level}
+            {character.status.hardcore && (
+              <div className="text-xs text-red-400 font-body mb-0.5">Hardcore</div>
+            )}
+            <div className="text-[10px] text-d2-muted font-body">
+              Updated{' '}
+              {(() => {
+                const parsedMs = new Date(character.parsed_at).getTime()
+                const diff = Math.max(0, now - parsedMs)
+                const secs = Math.floor(diff / 1000)
+                if (secs < 60) return 'just now'
+                const mins = Math.floor(secs / 60)
+                if (mins < 60) return `${mins}m ago`
+                const hours = Math.floor(mins / 60)
+                return `${hours}h ago`
+              })()}
             </div>
             {Array.isArray(character.parse_warnings) && character.parse_warnings.length > 0 && (
               <div

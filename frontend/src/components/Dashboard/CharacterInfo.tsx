@@ -35,6 +35,18 @@ export function CharacterInfo({ character }: { character: D2Character }) {
           <span className="text-d2-muted text-xs">Energy</span>
           <div className="font-mono text-d2-ink">{character.attributes.energy}</div>
         </div>
+        {character.attributes.stat_points_left > 0 && (
+          <div>
+            <span className="text-d2-muted text-xs">Stat Points Left</span>
+            <div className="font-mono text-amber-400">{character.attributes.stat_points_left}</div>
+          </div>
+        )}
+        {character.attributes.skill_points_left > 0 && (
+          <div>
+            <span className="text-d2-muted text-xs">Skill Points Left</span>
+            <div className="font-mono text-amber-400">{character.attributes.skill_points_left}</div>
+          </div>
+        )}
         <div>
           <span className="text-d2-muted text-xs">Life</span>
           <div className="font-mono text-d2-ink">{character.attributes.hp}/{character.attributes.max_hp}</div>
@@ -42,6 +54,14 @@ export function CharacterInfo({ character }: { character: D2Character }) {
         <div>
           <span className="text-d2-muted text-xs">Mana</span>
           <div className="font-mono text-d2-ink">{character.attributes.mana}/{character.attributes.max_mana}</div>
+        </div>
+        <div>
+          <span className="text-d2-muted text-xs">Stamina</span>
+          <div className="font-mono text-d2-ink">{character.attributes.stamina}/{character.attributes.max_stamina}</div>
+        </div>
+        <div>
+          <span className="text-d2-muted text-xs">Experience</span>
+          <div className="font-mono text-d2-ink">{character.attributes.experience.toLocaleString()}</div>
         </div>
         <div>
           <span className="text-d2-muted text-xs">Gold</span>

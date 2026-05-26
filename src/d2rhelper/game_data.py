@@ -310,3 +310,20 @@ class GameData:
 
     def set_name(self, sid: int) -> str | None:
         return self._set_names.get(sid)
+
+    def hireling_by_id(self, type_id: int) -> dict[str, str] | None:
+        row = self.conn.execute(
+            'SELECT * FROM hireling WHERE "id" = ? LIMIT 1', (str(type_id),)
+        ).fetchone()
+        if row is None:
+            return None
+        skills = []
+        for col in ("skill1", "skill2", "skill3", "skill4", "skill5", "skill6"):
+            val = (row[col] or "").strip()
+            if val:
+                skills.append(val)
+        return {
+            "hireling": row["hireling"] or "",
+            "x_subtype": row["x_subtype"] or "",
+            "skills": skills,
+        }

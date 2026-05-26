@@ -48,6 +48,7 @@ export interface QuestData {
   den_of_evil: boolean
   radament: boolean
   golden_bird: boolean
+  siege_completed: boolean
   socket_quest_available: boolean
   resistance_scroll: boolean
 }
@@ -112,6 +113,9 @@ export interface Mercenary {
   name_id: number
   type_id: number
   experience: number
+  hireling_name: string | null
+  hireling_subtype: string | null
+  hireling_skills: string[]
   items: ParsedItem[]
 }
 

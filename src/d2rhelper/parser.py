@@ -142,6 +142,11 @@ class CharacterParser:
             type_id=self._read_u16(data, 169),
             experience=self._read_u32(data, 171),
         )
+        hireling = self.game_data.hireling_by_id(merc.type_id)
+        if hireling:
+            merc.hireling_name = hireling["hireling"]
+            merc.hireling_subtype = hireling["x_subtype"]
+            merc.hireling_skills = hireling["skills"]
 
         skill_block_start = self._find_skill_block_start(data)
         item_list_start, item_count = self._find_item_list(data, skill_block_start)
@@ -327,6 +332,7 @@ class CharacterParser:
 
             quest_data = {
                 "difficulty": diff_name,
+                "siege_completed": bool(larzuk != 0),
                 "socket_quest_available": bool(larzuk & (1 << 1) and larzuk & (1 << 5)),
                 "resistance_scroll": bool(anya & (1 << 7)),
             }

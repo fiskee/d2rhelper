@@ -104,6 +104,12 @@ class CharacterContextStore:
                         "equipment": merc_eq,
                     }
 
+                charm_bases = {"Small Charm", "Large Charm", "Grand Charm"}
+                charms = [
+                    _make_item_summary(item)
+                    for item in (cd.get("inventory", []) or [])
+                    if isinstance(item, dict) and item.get("base") in charm_bases
+                ]
                 store.character_overview = {
                     "name": cd.get("name"),
                     "level": cd.get("level"),
@@ -113,6 +119,7 @@ class CharacterContextStore:
                     "attributes": {k: cd["attributes"].get(k) for k in ("strength", "dexterity", "vitality", "energy", "life", "max_hp", "mana", "max_mana", "stat_points_left", "skill_points_left")} if isinstance(cd.get("attributes"), dict) else {},
                     "skills": all_skills,
                     "equipment": equipment_summary,
+                    "charms": charms,
                     "mercenary": merc_summary,
                     "quests": _summarize_quests(cd.get("quest_data", []) or []),
                     "waypoints": _summarize_waypoints(cd.get("waypoints", []) or []),
@@ -157,7 +164,7 @@ def _make_item_summary(item: dict[str, Any]) -> dict[str, Any]:
     if item.get("socketed"):
         summary["socketed"] = item["socketed"]
     if item.get("properties"):
-        summary["properties"] = item["properties"][:5]
+        summary["properties"] = item["properties"]
     return summary
 
 
@@ -422,7 +429,7 @@ def get_materials_summary(store: CharacterContextStore) -> dict[str, Any]:
 TOOL_DEFINITIONS = [
     {
         "name": "get_character_overview",
-        "description": "Get the player's current character snapshot: name, level, class, attributes, skills (with levels), equipped items (each with id, name, quality, base, requirements, sockets, socketed runes/gems, and top 5 properties), quest progress, unlocked waypoints, and mercenary summary. ALWAYS call this at the start of a conversation.",
+        "description": "Get the player's current character snapshot: name, level, class, attributes, skills (with levels), equipped items (each with id, name, quality, base, requirements, sockets, socketed runes/gems, and all properties), inventory charms (Small/Large/Grand), quest progress, unlocked waypoints, and mercenary summary.",
         "parameters": {"type": "object", "properties": {}},
     },
     {

@@ -54,6 +54,58 @@ function PlayerItemLink({ name, itemId }: { name: string; itemId: string }) {
   return <ItemLink name={name} playerItem={item} itemId={itemId} />
 }
 
+function ToolMessage({ message }: { message: ChatMessage }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (message.toolCall) {
+    const argsStr = Object.entries(message.toolCall.args || {})
+      .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+      .join(', ')
+    return (
+      <div className="text-[11px] font-mono text-d2-muted/70 py-1 px-4">
+        <span className="text-d2-accent/60">&#x2699;</span>{' '}
+        {message.toolCall.name}
+        {argsStr ? <span className="text-d2-muted/50">({argsStr})</span> : '()'}
+      </div>
+    )
+  }
+
+  if (message.toolResult) {
+    const result = message.toolResult.result as Record<string, unknown> | undefined
+    const summary = result
+      ? (result.error
+        ? `Error: ${String(result.error)}`
+        : result.found === false
+          ? 'Not found'
+          : result.total_found !== undefined
+            ? `Found ${result.total_found} item${result.total_found !== 1 ? 's' : ''} · shown ${result.shown}`
+            : result.name
+              ? `${result.name} (${result.class || '?'}`
+              : 'Done')
+      : 'Done'
+
+    return (
+      <div className="text-[11px] font-mono text-d2-muted/50 py-0.5 px-4">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="hover:text-d2-muted cursor-pointer text-left"
+        >
+          {'  '}&#x2192; {summary}
+          {' '}
+          <span className="text-[9px]">{expanded ? '▲' : '▼'}</span>
+        </button>
+        {expanded && (
+          <pre className="mt-1 text-[10px] text-d2-muted/40 overflow-x-auto max-h-32 bg-d2-bg/50 rounded p-1.5">
+            {JSON.stringify(message.toolResult.result, null, 2)}
+          </pre>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}
+
 function MarkdownContent({ content }: { content: string }) {
   const processed = content
     .replace(/\]\(item:/g, '](#item:')
@@ -152,26 +204,31 @@ export function MessageList({ messages }: { messages: ChatMessage[] }) {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 scrollbar-thin space-y-4">
-      {messages.map((msg, i) => (
-        <div
-          key={i}
-          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-        >
+      {messages.map((msg, i) => {
+        if (msg.role === 'system' && (msg.toolCall || msg.toolResult)) {
+          return <ToolMessage key={i} message={msg} />
+        }
+        return (
           <div
-              className={`max-w-[80%] rounded-lg px-4 py-3 text-sm ${
-              msg.role === 'user'
-                ? 'bg-d2-accent text-d2-bg font-body'
-                : 'bg-d2-surface border border-d2-border text-d2-ink font-body'
-            }`}
+            key={i}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            {msg.role === 'user' ? (
-              <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-            ) : (
-              <MarkdownContent content={msg.content || '...'} />
-            )}
+            <div
+                className={`max-w-[80%] rounded-lg px-4 py-3 text-sm ${
+                msg.role === 'user'
+                  ? 'bg-d2-accent text-d2-bg font-body'
+                  : 'bg-d2-surface border border-d2-border text-d2-ink font-body'
+              }`}
+            >
+              {msg.role === 'user' ? (
+                <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+              ) : (
+                <MarkdownContent content={msg.content || '...'} />
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
       <div ref={bottomRef} />
     </div>
   )

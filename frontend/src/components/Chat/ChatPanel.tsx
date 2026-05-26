@@ -120,7 +120,39 @@ export function ChatPanel() {
     setConnectionState('connecting')
     skipNextRef.current = true
 
-    const ws = createChatWebSocket((text, done) => {
+    const ws = createChatWebSocket((data) => {
+      if (data.thinking === true) {
+        setChatStreaming(true)
+        return
+      }
+
+      if (data.thinking === false) {
+        return
+      }
+
+      if (data.tool_call) {
+        const tc = data.tool_call as { name: string; args: Record<string, unknown> }
+        addMessageToChat(chatId, {
+          role: 'system',
+          content: `${tc.name}(${Object.entries(tc.args || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')})`,
+          toolCall: tc,
+        })
+        return
+      }
+
+      if (data.tool_result) {
+        const tr = data.tool_result as { name: string; result: unknown }
+        addMessageToChat(chatId, {
+          role: 'system',
+          content: '',
+          toolResult: tr,
+        })
+        return
+      }
+
+      const text = String(data.text ?? '')
+      const done = Boolean(data.done)
+
       if (skipNextRef.current) {
         skipNextRef.current = false
         if (done) return
@@ -164,6 +196,7 @@ export function ChatPanel() {
       useAppStore.getState().setChatIdIndex(chatId, getIdIndex(), getStashTabIndex())
 
       contextPayload.chat_id = chatId
+      contextPayload.chat_mode = useAppStore.getState().chats.find(c => c.id === chatId)?.chatMode ?? 'tools'
       const contextJson = JSON.stringify(contextPayload, null, 2)
       setChatContextPayload(chatId, contextJson)
 
@@ -243,6 +276,13 @@ export function ChatPanel() {
           <h2 className="text-sm font-d2 text-d2-accent">
             {activeChat?.title ?? 'Chat'}
           </h2>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${
+            activeChat?.chatMode === 'tools'
+              ? 'bg-d2-accent/15 text-d2-accent'
+              : 'bg-d2-border/30 text-d2-muted'
+          }`}>
+            {activeChat?.chatMode === 'tools' ? 'TOOLS' : 'CONTEXT'}
+          </span>
           {connectionState === 'connected' && (
             <span className="w-2 h-2 rounded-full bg-green-500 inline-block" title="Connected" />
           )}

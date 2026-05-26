@@ -70,16 +70,18 @@ export async function fetchSets(): Promise<SetData[]> {
   return res.json()
 }
 
-export function createChatWebSocket(onMessage: (text: string, done: boolean) => void): WebSocket {
+export function createChatWebSocket(
+  onMessage: (msg: Record<string, unknown>) => void,
+): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat`)
 
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
-      onMessage(data.text ?? '', data.done ?? false)
+      onMessage(data)
     } catch {
-      onMessage(event.data, false)
+      onMessage({ text: event.data, done: false })
     }
   }
 

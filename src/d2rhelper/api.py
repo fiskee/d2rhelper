@@ -15,11 +15,14 @@ from pydantic import BaseModel
 from d2rhelper.chat_store import get_chat_store
 from d2rhelper.game_data import GameData
 from d2rhelper.models import ItemQuality
+from d2rhelper.tools import TOOL_DEFINITIONS, CharacterContextStore, execute_tool_call
 from d2rhelper.parser import CharacterParser
 from d2rhelper.shared_stash_parser import SharedStashParser
 from d2rhelper.casc import find_all_character_files, find_local_character_file, find_local_shared_stash_file
 
 load_dotenv()
+
+CHAT_MODE = os.getenv("D2RHELPER_CHAT_MODE", "tools")
 
 app = FastAPI(title="D2R Helper API")
 
@@ -316,6 +319,36 @@ _SYSTEM_PROMPT = (
     .read_text(encoding="utf-8")
 )
 
+_TOOL_INSTRUCTIONS = """
+## Available Tools
+
+You have access to tools to query the player's character and stash data on demand. **Do NOT assume or guess what items the player has — always search first.**
+
+- `get_character_overview()` — Quick snapshot: class, level, stats, skills, equipped items (each with id, name, quality, base, requirements, sockets, socketed contents, and top 5 properties), quests, waypoints, mercenary. **Call this at the start of every conversation.**
+- `get_mercenary_overview()` — Mercenary name, type, skills, and gear (each item with id, name, quality, base, requirements, sockets, and top properties).
+- `get_materials_summary()` — Compact inventory of ALL runes, gems, essences, and keys across personal + shared stashes. Returns counts: `{"runes": {"Sol": 3, "Tal": 1}, "gems": {"Perfect Topaz": 2}, ...}`. **Use this instead of search_stash when checking what runes/gems the player has.** Run this early when evaluating craftable runewords.
+- `search_character_items(query)` — Search the player's equipped items, inventory, belt, and Horadric Cube. `query` can be a single keyword string OR an array of strings to batch multiple searches in one call (e.g. `["Spirit", "fire resist", "Sol rune"]`). Matches item names, runewords, bases, runes, gems, and property text. **Call before any gear recommendation.**
+- `search_stash(query)` — Search all shared stash tabs (and other characters' stashes in "All characters" mode). Same single/multi-query behavior. **Call before suggesting runewords or anything requiring materials.** Batch related searches together — e.g. search for all runes needed for a runeword in one call.
+- `get_item_details(item_id)` — Full stats for a specific item. Use the `id` from search results.
+
+**Rules:**
+- **Always call `get_character_overview()` first.**
+- **Always call `search_character_items()` or `search_stash()` before making recommendations about gear, runewords, or item usage.** Never guess what the player has.
+- Use simple keyword queries — search is case-insensitive and matches item names, codes, properties, and socketed contents.
+- When recommending a runeword, search for the required runes AND a suitable base in one call each.
+- Reference player-owned items with the `[Name](item:p:ID)` link format using the ID from search results.
+"""
+
+_TOOLS_SYSTEM_PROMPT = _SYSTEM_PROMPT
+_ctx_start = _TOOLS_SYSTEM_PROMPT.find("=== YOUR CONTEXT ===")
+_gm_start = _TOOLS_SYSTEM_PROMPT.find("## Game Mechanics")
+if _ctx_start >= 0 and _gm_start > _ctx_start:
+    _TOOLS_SYSTEM_PROMPT = (
+        _TOOLS_SYSTEM_PROMPT[:_ctx_start]
+        + _TOOL_INSTRUCTIONS
+        + _TOOLS_SYSTEM_PROMPT[_gm_start:]
+    )
+
 
 @app.websocket("/api/chat")
 async def chat_websocket(ws: WebSocket) -> None:
@@ -332,11 +365,15 @@ async def chat_websocket(ws: WebSocket) -> None:
 
     model_name = (os.getenv("GEMINI_MODEL") or "gemini-3.5-flash").strip() or "gemini-3.5-flash"
     client = genai.Client(api_key=api_key)
-    store = get_chat_store()
+    chat_store = get_chat_store()
 
+    context_store: CharacterContextStore | None = None
+    contents: list[types.Content] = []
+    system_instruction: str = ""
     context_json = "{}"
     chat = None
     chat_id: str | None = None
+    chat_mode: str = CHAT_MODE
 
     try:
         while True:
@@ -353,11 +390,16 @@ async def chat_websocket(ws: WebSocket) -> None:
                 except (json.JSONDecodeError, TypeError):
                     pass
                 chat_id = context_data.get("chat_id")
+                chat_mode = context_data.get("chat_mode", CHAT_MODE)
 
-                system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
+                if chat_mode == "tools":
+                    context_store = CharacterContextStore.from_json(payload)
+                    system_instruction = _TOOLS_SYSTEM_PROMPT
+                else:
+                    system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
 
                 if chat_id:
-                    history = store.get_messages(chat_id)
+                    history = chat_store.get_messages(chat_id)
                     if history:
                         lines = ["\n\n--- Previous conversation ---\n"]
                         for msg in history[-40:]:
@@ -366,18 +408,10 @@ async def chat_websocket(ws: WebSocket) -> None:
                         lines.append("--- End of previous conversation ---\n")
                         system_instruction += "".join(lines)
 
-                chat = client.chats.create(
-                    model=model_name,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                    ),
-                )
-
-                await ws.send_text(json.dumps({"text": "Ready. Ask me about your character!", "done": True}))
-
-            elif msg_type == "message":
-                if chat is None:
-                    system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
+                if chat_mode == "tools":
+                    contents = []
+                    chat = None
+                else:
                     chat = client.chats.create(
                         model=model_name,
                         config=types.GenerateContentConfig(
@@ -385,21 +419,37 @@ async def chat_websocket(ws: WebSocket) -> None:
                         ),
                     )
 
+                mode_label = "Tools" if chat_mode == "tools" else "Context"
+                await ws.send_text(json.dumps({"text": f"Ready ({mode_label} mode). Ask me about your character!", "done": True}))
+
+            elif msg_type == "message":
                 if chat_id:
-                    if not store.chat_exists(chat_id):
-                        store.create_chat(chat_id=chat_id)
-                    store.add_message(chat_id, "user", payload)
+                    if not chat_store.chat_exists(chat_id):
+                        chat_store.create_chat(chat_id=chat_id)
+                    chat_store.add_message(chat_id, "user", payload)
 
-                response_text = ""
-                response = chat.send_message_stream(payload)
-                for chunk in response:
-                    if chunk.text:
-                        response_text += chunk.text
-                        await ws.send_text(json.dumps({"text": chunk.text, "done": False}))
-                await ws.send_text(json.dumps({"text": "", "done": True}))
+                if chat_mode == "tools" and context_store is not None:
+                    await _handle_message_tools(ws, client, model_name, system_instruction, payload, contents, context_store, chat_store, chat_id)
+                else:
+                    if chat is None:
+                        system_instruction = _SYSTEM_PROMPT.replace("{CONTEXT_JSON}", context_json)
+                        chat = client.chats.create(
+                            model=model_name,
+                            config=types.GenerateContentConfig(
+                                system_instruction=system_instruction,
+                            ),
+                        )
 
-                if chat_id and response_text:
-                    store.add_message(chat_id, "assistant", response_text)
+                    response_text = ""
+                    response = chat.send_message_stream(payload)
+                    for chunk in response:
+                        if chunk.text:
+                            response_text += chunk.text
+                            await ws.send_text(json.dumps({"text": chunk.text, "done": False}))
+                    await ws.send_text(json.dumps({"text": "", "done": True}))
+
+                    if chat_id and response_text:
+                        chat_store.add_message(chat_id, "assistant", response_text)
 
     except WebSocketDisconnect:
         pass
@@ -408,6 +458,96 @@ async def chat_websocket(ws: WebSocket) -> None:
             await ws.send_text(json.dumps({"text": f"Error: {exc}", "done": True}))
         except Exception:
             pass
+
+
+async def _handle_message_tools(
+    ws: WebSocket,
+    client: Any,
+    model_name: str,
+    system_instruction: str,
+    payload: str,
+    contents: list[Any],
+    context_store: CharacterContextStore,
+    chat_store: Any,
+    chat_id: str | None,
+) -> None:
+    import asyncio as _asyncio
+
+    from google.genai import types
+
+    contents.append(types.Content(parts=[types.Part(text=payload)], role="user"))
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        tools=[types.Tool(function_declarations=TOOL_DEFINITIONS)],
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+    while True:
+        await ws.send_text(json.dumps({"thinking": True, "done": False}))
+        await _asyncio.sleep(0.02)
+
+        response = client.models.generate_content(
+            model=model_name,
+            contents=contents,
+            config=config,
+        )
+
+        await ws.send_text(json.dumps({"thinking": False, "done": False}))
+        await _asyncio.sleep(0.02)
+
+        fc_list: list[Any] = list(getattr(response, "function_calls", None) or [])
+        if not fc_list and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, "function_calls"):
+                fc_list = list(candidate.function_calls or [])
+
+        if fc_list:
+            candidate = response.candidates[0]
+            if candidate.content:
+                contents.append(candidate.content)
+
+            fn_response_parts: list[Any] = []
+            for fc in fc_list:
+                await ws.send_text(json.dumps({
+                    "tool_call": {"name": fc.name, "args": dict(fc.args) if fc.args else {}},
+                    "done": False,
+                }))
+                await _asyncio.sleep(0.02)
+
+                try:
+                    result = execute_tool_call(fc.name, dict(fc.args) if fc.args else {}, context_store)
+                except Exception as exc:
+                    result = {"error": str(exc)}
+
+                await ws.send_text(json.dumps({
+                    "tool_result": {"name": fc.name, "result": result},
+                    "done": False,
+                }))
+                await _asyncio.sleep(0.02)
+
+                fn_response_parts.append(types.Part(
+                    function_response=types.FunctionResponse(
+                        id=fc.id,
+                        name=fc.name,
+                        response={"result": result},
+                    )
+                ))
+
+            contents.append(types.Content(parts=fn_response_parts, role="tool"))
+            continue
+
+        full_text = getattr(response, "text", None) or ""
+        if response.candidates and response.candidates[0].content:
+            contents.append(response.candidates[0].content)
+
+        await ws.send_text(json.dumps({"text": full_text, "done": False}))
+        await _asyncio.sleep(0.02)
+        await ws.send_text(json.dumps({"text": "", "done": True}))
+
+        if chat_id and full_text:
+            chat_store.add_message(chat_id, "assistant", full_text)
+        break
 
 
 @app.get("/api/chats")

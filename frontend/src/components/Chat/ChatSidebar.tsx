@@ -38,12 +38,18 @@ export function ChatSidebar() {
 
   return (
     <>
-      <div className="p-2">
+      <div className="p-2 flex flex-col gap-1.5">
         <button
-          onClick={createChat}
+          onClick={() => createChat('tools')}
           className="w-full px-3 py-1.5 text-xs font-body text-d2-ink bg-d2-accent/10 hover:bg-d2-accent/20 border border-d2-accent/30 rounded-lg transition-colors cursor-pointer"
         >
-          + New Chat
+          + New Chat (Tools)
+        </button>
+        <button
+          onClick={() => createChat('full_context')}
+          className="w-full px-3 py-1.5 text-xs font-body text-d2-ink bg-d2-accent/10 hover:bg-d2-accent/20 border border-d2-accent/30 rounded-lg transition-colors cursor-pointer"
+        >
+          + New Chat (Full Context)
         </button>
       </div>
 

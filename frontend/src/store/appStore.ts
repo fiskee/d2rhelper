@@ -49,7 +49,7 @@ function deriveAllItems(
 function makeChat(state: {
   activeCharacterPath: string | null
   character: D2Character | null
-}): Chat {
+}, mode: 'tools' | 'full_context' = 'tools'): Chat {
   return {
     id: crypto.randomUUID(),
     title: 'New Chat',
@@ -57,6 +57,7 @@ function makeChat(state: {
     characterPath: state.activeCharacterPath,
     characterType: state.character?.character_type ?? null,
     characterName: state.character?.name ?? null,
+    chatMode: mode,
     contextPayload: null,
     itemIdIndex: {},
     itemStashTabIndex: {},
@@ -101,7 +102,7 @@ interface AppState {
   idIndex: Record<string, ParsedItem>
   stashTabIndex: Record<string, number>
 
-  createChat: () => void
+  createChat: (mode?: 'tools' | 'full_context') => void
   deleteChat: (id: string) => void
   setActiveChat: (id: string) => void
   addMessageToChat: (chatId: string, msg: ChatMessage) => void
@@ -178,6 +179,7 @@ export const useAppStore = create<AppState>()(
               id: bc.id,
               title: bc.title,
               messages: [],
+              chatMode: 'tools' as const,
               contextPayload: null,
               itemIdIndex: {},
               itemStashTabIndex: {},
@@ -269,8 +271,8 @@ export const useAppStore = create<AppState>()(
       idIndex: {},
       stashTabIndex: {},
 
-      createChat: () => {
-        const chat = makeChat(get())
+      createChat: (mode: 'tools' | 'full_context' = 'tools') => {
+        const chat = makeChat(get(), mode)
         set((s) => {
           let chats = s.chats
           if (s.activeChatId) {

@@ -179,6 +179,8 @@ export interface SearchResult {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
+  toolCall?: { name: string; args: Record<string, unknown> }
+  toolResult?: { name: string; result: unknown }
 }
 
 export interface Chat {
@@ -188,6 +190,7 @@ export interface Chat {
   characterPath: string | null
   characterType: string | null
   characterName: string | null
+  chatMode: 'tools' | 'full_context'
   contextPayload: string | null
   itemIdIndex: Record<string, ParsedItem>
   itemStashTabIndex: Record<string, number>

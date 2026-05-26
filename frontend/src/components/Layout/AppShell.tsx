@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { CharacterPicker } from './CharacterPicker'
 import { ChatSidebar } from '../Chat/ChatSidebar'
@@ -14,6 +15,7 @@ const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { view, setView, character, loading, error, createChat } = useAppStore()
+  const [warningsOpen, setWarningsOpen] = useState(false)
 
   return (
     <div className="flex h-screen bg-d2-bg">
@@ -76,8 +78,18 @@ export function AppShell({ children }: { children: ReactNode }) {
               {character.name} — {character.character_type} Lvl {character.level}
             </div>
             {Array.isArray(character.parse_warnings) && character.parse_warnings.length > 0 && (
-              <div className="text-[10px] text-amber-500 mt-1 font-body">
+              <div
+                className="text-[10px] text-amber-500 mt-1 font-body cursor-pointer hover:text-amber-500/80 select-none"
+                onClick={() => setWarningsOpen(!warningsOpen)}
+              >
                 ⚠ {character.parse_warnings.length} warning{character.parse_warnings.length !== 1 ? 's' : ''}
+                {warningsOpen && (
+                  <ul className="text-xs text-d2-muted mt-1 list-disc list-inside space-y-0.5">
+                    {character.parse_warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>

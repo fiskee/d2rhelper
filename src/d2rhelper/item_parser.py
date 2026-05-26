@@ -55,21 +55,20 @@ class ItemParser:
                 self._validate_parsed_item(parsed, consumed, recovered=False)
                 self.recovery.nudge_to_plausible_next_start(br)
                 results.append(parsed)
-            except Exception as exc:
+            except Exception:
                 failed_pos = before
-                self.warnings.append(f"item[{idx}] failed at bit {failed_pos}: {type(exc).__name__}: {exc}")
                 placeholder = self._placeholder_item(idx, failed_pos)
                 fallback_item = self.recovery.recover_item_from_position(br, idx, failed_pos)
                 if fallback_item is not None:
                     results.append(fallback_item)
-                    self.warnings.append(f"item[{idx}] recovered from failed position")
+                    self.warnings.append(f"item[{idx}] recovered from failed position (bit {failed_pos})")
                     continue
 
                 fallback = self.recovery.recover_next_item_start(br, failed_pos)
                 if fallback is None:
                     placeholder.parse_ok = False
                     results.append(placeholder)
-                    self.warnings.append(f"item[{idx}] recovery failed, advancing one byte")
+                    self.warnings.append(f"item[{idx}] recovery failed at bit {failed_pos}, advancing one byte")
                     br.set_position_in_bits(min(failed_pos + 8, br.length_in_bits - 8))
                     continue
                 br.set_position_in_bits(fallback)
@@ -81,7 +80,8 @@ class ItemParser:
                     self.recovery.nudge_to_plausible_next_start(br)
                     recovered.recovered = True
                     results.append(recovered)
-                    self.warnings.append(f"item[{idx}] recovered and parsed at bit {fallback}")
+                    skipped = fallback - failed_pos
+                    self.warnings.append(f"item[{idx}] recovered: shifted {skipped} bits (from bit {failed_pos} to {fallback})")
                 except Exception as recover_exc:
                     placeholder.parse_ok = False
                     results.append(placeholder)

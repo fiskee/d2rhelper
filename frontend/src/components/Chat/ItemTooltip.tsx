@@ -98,6 +98,7 @@ const QUALITY_CHIP: Record<string, string> = {
   set: 'bg-d2-set/20 text-d2-set',
   runeword: 'bg-d2-accent/20 text-d2-accent',
   base: 'bg-d2-border/20 text-d2-muted',
+  skill: 'bg-purple-500/20 text-purple-300',
 }
 
 function DBTooltip({ item }: { item: DBAttrs }) {
@@ -111,7 +112,13 @@ function DBTooltip({ item }: { item: DBAttrs }) {
       <div className={`font-bold text-sm font-d2 mt-1 ${qualityText(item.quality)}`}>
         {item.name}
       </div>
-      {item.base_name && (
+      {item.quality === 'skill' && item.class && (
+        <div className="text-d2-muted text-xs mt-0.5">{item.class} Skill</div>
+      )}
+      {item.quality === 'skill' && item.description && (
+        <div className="text-d2-muted text-[10px] mt-1 leading-tight italic">{item.description}</div>
+      )}
+      {item.quality !== 'skill' && item.base_name && (
         <div className="text-d2-muted text-xs">{item.base_name}</div>
       )}
       {item.base_hint && (

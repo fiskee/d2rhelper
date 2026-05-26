@@ -379,3 +379,20 @@ Examples:
 - Keep hover text concise — ~120 characters max
 - Link the FIRST mention of each area in a response
 - If the player lacks the waypoint, mention that in the response body and link the area anyway
+
+## Skill Linking
+
+When referencing class skills, use this syntax:
+
+```
+[Skill Name](skill:)
+```
+
+Examples:
+- `[Blizzard](skill:)` — the Sorceress Blizzard skill
+- `[Frozen Orb](skill:)` — Frozen Orb
+- `[Battle Orders](skill:)` — Barbarian Battle Orders
+
+**Rules:**
+- Link the FIRST mention of each skill in a response
+- Only link actual Diablo II skill names, not generic terms like "teleport"

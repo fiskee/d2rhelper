@@ -47,13 +47,6 @@ function ItemLinkResolver({ name, itemType }: { name: string; itemType: string }
   return <span>{name}</span>
 }
 
-function PlayerItemLink({ name, itemId }: { name: string; itemId: string }) {
-  const idIndex = useAppStore((s) => s.idIndex)
-  const item = idIndex[itemId]
-  if (!item) return <span>{name}</span>
-  return <ItemLink name={name} playerItem={item} itemId={itemId} />
-}
-
 function ToolMessage({ message }: { message: ChatMessage }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -77,11 +70,15 @@ function ToolMessage({ message }: { message: ChatMessage }) {
         ? `Error: ${String(result.error)}`
         : result.found === false
           ? 'Not found'
-          : result.total_found !== undefined
-            ? `Found ${result.total_found} item${result.total_found !== 1 ? 's' : ''} · shown ${result.shown}`
-            : result.name
-              ? `${result.name} (${result.class || '?'}`
-              : 'Done')
+          : result.queries
+            ? `${(result as { queries: unknown[] }).queries.length} searches · ${result.total_found} found`
+            : result.total_found !== undefined
+              ? `Found ${result.total_found} item${result.total_found !== 1 ? 's' : ''} · shown ${result.shown}`
+              : result.runes
+                ? `${Object.keys((result as Record<string,unknown>).runes as object).length} rune types · ${Object.keys((result as Record<string,unknown>).gems as object || {}).length} gem types`
+                : result.name
+                  ? `${result.name} (${(result as Record<string,unknown>).class || '?'})`
+                  : 'Done')
       : 'Done'
 
     return (
@@ -92,7 +89,7 @@ function ToolMessage({ message }: { message: ChatMessage }) {
         >
           {'  '}&#x2192; {summary}
           {' '}
-          <span className="text-[9px]">{expanded ? '▲' : '▼'}</span>
+          <span className="text-[9px]">{expanded ? '\u25B2' : '\u25BC'}</span>
         </button>
         {expanded && (
           <pre className="mt-1 text-[10px] text-d2-muted/40 overflow-x-auto max-h-32 bg-d2-bg/50 rounded p-1.5">
@@ -106,9 +103,41 @@ function ToolMessage({ message }: { message: ChatMessage }) {
   return null
 }
 
+function PlayerItemLink({ name, itemId }: { name: string; itemId: string }) {
+  const idIndex = useAppStore((s) => s.idIndex)
+  const item = idIndex[itemId]
+  if (!item) return <span>{name}</span>
+  return <ItemLink name={name} playerItem={item} itemId={itemId} />
+}
+
+function SkillLink({ name }: { name: string }) {
+  const [dbItem, setDbItem] = useState<DBAttrs | null | undefined>(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    lookupItem(name, 'skill').then((data) => {
+      if (!cancelled) setDbItem(data)
+    })
+    return () => { cancelled = true }
+  }, [name])
+
+  if (dbItem === undefined) {
+    return <span className="text-d2-accent/70 border-b border-dotted border-d2-accent/40 cursor-help">{name}</span>
+  }
+  if (dbItem === null) {
+    return <span>{name}</span>
+  }
+  return <ItemLink name={name} dbItem={dbItem} />
+}
+
 function MarkdownContent({ content }: { content: string }) {
   const processed = content
+    .replace(/`\[([^\]]+)\]\((item|area):([^)]+)\)`/g, '[$1]($2:$3)')
+    .replace(/\]\(#item:/g, '](#item:')
     .replace(/\]\(item:/g, '](#item:')
+    .replace(/\]\(#skill:/g, '](#skill:')
+    .replace(/\]\(skill:/g, '](#skill:')
+    .replace(/\]\(#area "([^"]*)"\)/g, '](#area "$1")')
     .replace(/\]\(area: "([^"]*)"\)/g, '](#area "$1")')
   return (
     <ReactMarkdown
@@ -164,6 +193,11 @@ function MarkdownContent({ content }: { content: string }) {
             const name = String(children ?? '')
             if (!name) return null
             return <ItemLinkResolver name={name} itemType={itemType} />
+          }
+          if (href && href.startsWith('#skill:')) {
+            const name = String(children ?? '')
+            if (!name) return null
+            return <SkillLink name={name} />
           }
           if (href === '#area' && title) {
             const name = String(children ?? '')

@@ -110,7 +110,7 @@ export async function deleteChatApi(chatId: string): Promise<void> {
 
 export interface DBAttrs {
   name: string
-  quality: 'unique' | 'set' | 'runeword' | 'base'
+  quality: 'unique' | 'set' | 'runeword' | 'base' | 'skill'
   base_name?: string | null
   base_code?: string | null
   set_name?: string | null
@@ -119,6 +119,8 @@ export interface DBAttrs {
   runes?: string[]
   type?: string | null
   code?: string | null
+  class?: string | null
+  description?: string | null
   properties: string[]
 }
 

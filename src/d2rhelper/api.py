@@ -748,6 +748,21 @@ def _format_setitem(row: dict[str, Any], gd: Any) -> dict[str, Any]:
     }
 
 
+def _format_skill(row: dict[str, Any], gd: Any) -> dict[str, Any]:
+    class_name = str(row.get("charclass", "") or "")
+    skill_desc = str(row.get("str_long", "") or row.get("str_short", "") or "")
+    req_level = int(row["reqlevel"]) if row.get("reqlevel") else None
+
+    return {
+        "name": str(row.get("skill", "")),
+        "quality": "skill",
+        "class": class_name,
+        "description": skill_desc,
+        "level_req": req_level,
+        "properties": [],
+    }
+
+
 def _format_base_item(row: dict[str, Any], table: str, gd: Any) -> dict[str, Any]:
     props: list[str] = []
     if table == "weapons":
@@ -854,6 +869,17 @@ async def lookup_item(name: str = "", type: str = "") -> JSONResponse:
             row = _query_base_item(gd, table, q)
             if row:
                 return JSONResponse(content=_format_base_item(row, table, gd))
+        return JSONResponse(content=None)
+
+    if item_type in ("skill",):
+        row = gd.conn.execute(
+            'SELECT s.*, sd.str_name, sd.str_short, sd.str_long FROM skills s '
+            'JOIN skilldesc sd ON s.skilldesc = sd.skilldesc '
+            'WHERE LOWER(s.skill) = ?',
+            (q,),
+        ).fetchone()
+        if row:
+            return JSONResponse(content=_format_skill(dict(row), gd))
         return JSONResponse(content=None)
 
     # Auto-detect: prioritized search

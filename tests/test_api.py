@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 import pytest
 
@@ -239,3 +242,273 @@ def test_search_multi_character_results_sorted(client: "TestClient") -> None:
     if results:
         scores = [r["score"] for r in results]
         assert scores == sorted(scores, reverse=True)
+
+
+def test_sets_endpoint(client: "TestClient") -> None:
+    resp = client.get("/api/sets")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+    assert "name" in data[0]
+    assert "items" in data[0]
+
+
+def test_lookup_item_short_name_returns_none(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "a"})
+    assert resp.status_code == 200
+    assert resp.json() is None
+
+
+def test_lookup_item_runeword(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "Spirit", "type": "runeword"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data is not None
+    assert data["quality"] == "runeword"
+    assert data["name"] == "Spirit"
+    assert isinstance(data["runes"], list)
+    assert len(data["runes"]) >= 4
+
+
+def test_lookup_item_unique(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "The Oculus", "type": "unique"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data is not None
+    assert data["quality"] == "unique"
+    assert data["name"] == "The Oculus"
+
+
+def test_lookup_item_set(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "Tal Rasha's Adjudication", "type": "set"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data is not None
+    assert data["quality"] == "set"
+    assert data["name"] == "Tal Rasha's Adjudication"
+
+
+def test_lookup_item_base(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "Crystal Sword", "type": "base"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data is not None
+    assert data["quality"] == "base"
+    assert data["name"] == "Crystal Sword"
+
+
+def test_lookup_item_skill(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "Blizzard", "type": "skill"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data is not None
+    assert data["quality"] == "skill"
+    assert data["name"] == "Blizzard"
+
+
+def test_lookup_item_auto_detect(client: "TestClient") -> None:
+    resp = client.get("/api/items/lookup", params={"name": "Spirit"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data is not None
+    assert data["quality"] == "runeword"
+
+
+def test_chats_list_and_delete(client: "TestClient", monkeypatch, tmp_path: Path) -> None:
+    from d2rhelper.chat_store import ChatStore
+
+    store = ChatStore(db_path=tmp_path / "chat-test.db")
+    monkeypatch.setattr("d2rhelper.api.get_chat_store", lambda: store)
+
+    chat_id = f"test-{uuid4()}"
+    store.create_chat(chat_id=chat_id, title="Cleanup test")
+    store.add_message(chat_id, "user", "hello")
+
+    list_resp = client.get("/api/chats")
+    assert list_resp.status_code == 200
+    chats = list_resp.json()
+    assert any(c["id"] == chat_id for c in chats)
+
+    delete_resp = client.delete(f"/api/chats/{chat_id}")
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()["ok"] is True
+
+    list_resp_after = client.get("/api/chats")
+    assert list_resp_after.status_code == 200
+    chats_after = list_resp_after.json()
+    assert all(c["id"] != chat_id for c in chats_after)
+
+
+def test_chat_websocket_missing_api_key(client: "TestClient", monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    with client.websocket_connect("/api/chat") as ws:
+        payload = json.loads(ws.receive_text())
+        assert payload["done"] is True
+        assert "GEMINI_API_KEY not configured" in payload["text"]
+
+
+def _install_fake_genai(monkeypatch: pytest.MonkeyPatch, *, tools_mode: bool) -> None:
+    class FakePart:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class FakeContent:
+        def __init__(self, parts=None, role=None):
+            self.parts = parts or []
+            self.role = role
+
+    class FakeTool:
+        def __init__(self, function_declarations=None):
+            self.function_declarations = function_declarations
+
+    class FakeGenerateContentConfig:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class FakeAutomaticFunctionCallingConfig:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class FakeFunctionResponse:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class FakeFunctionCall:
+        def __init__(self, name: str, args: dict, call_id: str):
+            self.name = name
+            self.args = args
+            self.id = call_id
+
+    class FakeCandidate:
+        def __init__(self, content=None, function_calls=None):
+            self.content = content
+            self.function_calls = function_calls or []
+
+    class FakeResponse:
+        def __init__(self, *, text: str = "", function_calls=None, content=None):
+            self.text = text
+            self.function_calls = function_calls or []
+            self.candidates = [FakeCandidate(content=content, function_calls=function_calls or [])]
+
+    class FakeModels:
+        def __init__(self):
+            self.calls = 0
+
+        def generate_content(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                fn_call = FakeFunctionCall("get_character_overview", {}, "fc-1")
+                return FakeResponse(function_calls=[fn_call], content=FakeContent(parts=[], role="model"))
+            return FakeResponse(text="Tool mode final response", content=FakeContent(parts=[], role="model"))
+
+    class FakeChat:
+        def send_message_stream(self, payload):
+            class Chunk:
+                def __init__(self, text: str):
+                    self.text = text
+
+            yield Chunk("Full context ")
+            yield Chunk("final response")
+
+    class FakeChats:
+        def create(self, **kwargs):
+            return FakeChat()
+
+    class FakeClient:
+        def __init__(self, api_key: str):
+            self.api_key = api_key
+            self.models = FakeModels()
+            self.chats = FakeChats()
+
+    fake_types = types.SimpleNamespace(
+        Part=FakePart,
+        Content=FakeContent,
+        Tool=FakeTool,
+        GenerateContentConfig=FakeGenerateContentConfig,
+        AutomaticFunctionCallingConfig=FakeAutomaticFunctionCallingConfig,
+        FunctionResponse=FakeFunctionResponse,
+    )
+    fake_genai_module = types.SimpleNamespace(Client=FakeClient, types=fake_types)
+    fake_google = types.SimpleNamespace(genai=fake_genai_module)
+
+    monkeypatch.setitem(sys.modules, "google", fake_google)
+    monkeypatch.setitem(sys.modules, "google.genai", fake_genai_module)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("D2RHELPER_CHAT_MODE", "tools" if tools_mode else "full_context")
+
+
+def test_chat_websocket_tools_mode_flow(client: "TestClient", monkeypatch) -> None:
+    _install_fake_genai(monkeypatch, tools_mode=True)
+
+    context_payload = {
+        "chat_id": f"ws-tools-{uuid4()}",
+        "chat_mode": "tools",
+        "character": None,
+        "stash_tabs": [],
+    }
+
+    with client.websocket_connect("/api/chat") as ws:
+        ws.send_text(json.dumps({"type": "context", "payload": json.dumps(context_payload)}))
+        ack = json.loads(ws.receive_text())
+        assert ack["done"] is True
+
+        ws.send_text(json.dumps({"type": "message", "payload": "hello"}))
+
+        saw_thinking_true = False
+        saw_thinking_false = False
+        saw_tool_call = False
+        saw_tool_result = False
+        final_text = ""
+
+        while True:
+            evt = json.loads(ws.receive_text())
+            if evt.get("thinking") is True:
+                saw_thinking_true = True
+            if evt.get("thinking") is False:
+                saw_thinking_false = True
+            if "tool_call" in evt:
+                saw_tool_call = True
+                assert evt["tool_call"]["name"] == "get_character_overview"
+            if "tool_result" in evt:
+                saw_tool_result = True
+                assert evt["tool_result"]["name"] == "get_character_overview"
+                assert evt["tool_result"].get("ok") is True
+            if "text" in evt:
+                final_text += evt.get("text", "")
+            if evt.get("done") is True:
+                break
+
+        assert saw_thinking_true
+        assert saw_thinking_false
+        assert saw_tool_call
+        assert saw_tool_result
+        assert "Tool mode final response" in final_text
+
+
+def test_chat_websocket_full_context_flow(client: "TestClient", monkeypatch) -> None:
+    _install_fake_genai(monkeypatch, tools_mode=False)
+
+    context_payload = {
+        "chat_id": f"ws-full-{uuid4()}",
+        "chat_mode": "full_context",
+        "character": None,
+        "stash_tabs": [],
+    }
+
+    with client.websocket_connect("/api/chat") as ws:
+        ws.send_text(json.dumps({"type": "context", "payload": json.dumps(context_payload)}))
+        ack = json.loads(ws.receive_text())
+        assert ack["done"] is True
+
+        ws.send_text(json.dumps({"type": "message", "payload": "hello"}))
+        text_acc = ""
+        while True:
+            evt = json.loads(ws.receive_text())
+            if "text" in evt:
+                text_acc += evt.get("text", "")
+            if evt.get("done") is True:
+                break
+
+        assert "Full context final response" in text_acc

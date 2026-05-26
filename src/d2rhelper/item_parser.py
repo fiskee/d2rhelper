@@ -19,6 +19,9 @@ class ItemParseError(ValueError):
     pass
 
 
+RECOVERABLE_PARSE_EXCEPTIONS = (ValueError, IndexError)
+
+
 class ItemParser:
     def __init__(self, game_data: GameData | None = None) -> None:
         self.game_data = game_data or GameData.get_instance()
@@ -55,7 +58,7 @@ class ItemParser:
                 self._validate_parsed_item(parsed, consumed, recovered=False)
                 self.recovery.nudge_to_plausible_next_start(br)
                 results.append(parsed)
-            except Exception:
+            except RECOVERABLE_PARSE_EXCEPTIONS:
                 failed_pos = before
                 placeholder = self._placeholder_item(idx, failed_pos)
                 fallback_item = self.recovery.recover_item_from_position(br, idx, failed_pos)
@@ -79,7 +82,7 @@ class ItemParser:
                     self.recovery.nudge_to_plausible_next_start(br)
                     recovered.recovered = True
                     results.append(recovered)
-                except Exception as recover_exc:
+                except RECOVERABLE_PARSE_EXCEPTIONS as recover_exc:
                     placeholder.parse_ok = False
                     results.append(placeholder)
                     self.warnings.append(f"item[{idx}] recovery parse failed at bit {fallback}: {recover_exc}")

@@ -70,8 +70,55 @@ export async function fetchSets(): Promise<SetData[]> {
   return res.json()
 }
 
+export type ChatWsMessage =
+  | { thinking: boolean; done: boolean }
+  | { tool_call: { name: string; args: Record<string, unknown> }; done: boolean }
+  | { tool_result: { name: string; result: unknown; ok?: boolean; error?: string }; done: boolean }
+  | { text: string; done: boolean }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parseChatWsMessage(raw: unknown): ChatWsMessage {
+  if (!isRecord(raw)) {
+    return { text: '', done: false }
+  }
+
+  if (typeof raw.thinking === 'boolean') {
+    return { thinking: raw.thinking, done: Boolean(raw.done) }
+  }
+
+  if (isRecord(raw.tool_call) && typeof raw.tool_call.name === 'string') {
+    return {
+      tool_call: {
+        name: raw.tool_call.name,
+        args: isRecord(raw.tool_call.args) ? raw.tool_call.args : {},
+      },
+      done: Boolean(raw.done),
+    }
+  }
+
+  if (isRecord(raw.tool_result) && typeof raw.tool_result.name === 'string') {
+    return {
+      tool_result: {
+        name: raw.tool_result.name,
+        result: raw.tool_result.result,
+        ok: typeof raw.tool_result.ok === 'boolean' ? raw.tool_result.ok : undefined,
+        error: typeof raw.tool_result.error === 'string' ? raw.tool_result.error : undefined,
+      },
+      done: Boolean(raw.done),
+    }
+  }
+
+  return {
+    text: typeof raw.text === 'string' ? raw.text : '',
+    done: Boolean(raw.done),
+  }
+}
+
 export function createChatWebSocket(
-  onMessage: (msg: Record<string, unknown>) => void,
+  onMessage: (msg: ChatWsMessage) => void,
 ): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat`)
@@ -79,7 +126,7 @@ export function createChatWebSocket(
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
-      onMessage(data)
+      onMessage(parseChatWsMessage(data))
     } catch {
       onMessage({ text: event.data, done: false })
     }

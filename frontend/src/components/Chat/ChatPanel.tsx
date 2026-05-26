@@ -1,60 +1,9 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppStore } from '../../store/appStore'
-import { createChatWebSocket } from '../../api/client'
 import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
-import type { ParsedItem, D2Character, SharedStashTab } from '../../types'
-import { getItemDisplayName } from '../../types'
-import { buildContextPayload, getIdIndex, getStashTabIndex } from './contextBuilder'
-
-type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
-
-function buildItemIndex(
-  character: D2Character | null,
-  stashTabs: SharedStashTab[],
-  characterCache: Record<string, D2Character>,
-  includeAll: boolean,
-  activePath: string | null,
-): Record<string, ParsedItem[]> {
-  const index: Record<string, ParsedItem[]> = {}
-
-  function indexItems(items: ParsedItem[]) {
-    for (const item of items) {
-      const names: string[] = []
-      const display = getItemDisplayName(item)
-      if (display) names.push(display.toLowerCase())
-      if (item.item_name) names.push(item.item_name.toLowerCase())
-      if (item.runeword_name) names.push(item.runeword_name.toLowerCase())
-      if (item.unique_name) names.push(item.unique_name.toLowerCase())
-      if (item.set_name) names.push(item.set_name.toLowerCase())
-      if (item.code) names.push(item.code.toLowerCase())
-
-      for (const n of names) {
-        if (!index[n]) index[n] = []
-        index[n].push(item)
-      }
-    }
-  }
-
-  if (character) {
-    indexItems(character.items)
-    indexItems(character.mercenary.items)
-  }
-
-  for (const tab of stashTabs) {
-    indexItems(tab.items)
-  }
-
-  if (includeAll) {
-    for (const [path, char] of Object.entries(characterCache)) {
-      if (path === activePath) continue
-      indexItems(char.items)
-      indexItems(char.mercenary.items)
-    }
-  }
-
-  return index
-}
+import { buildContextPayload } from './contextBuilder'
+import { useChatConnection } from './useChatConnection'
 
 function ContextBlock({ payload, label }: { payload: string; label: string }) {
   const [expanded, setExpanded] = useState(false)
@@ -91,9 +40,6 @@ export function ChatPanel() {
     characterCache,
     character,
     stashTabs,
-    addMessageToChat,
-    setChatStreaming,
-    setChatContextPayload,
   } = useAppStore()
 
   const activeChat = useMemo(
@@ -101,174 +47,7 @@ export function ChatPanel() {
     [chats, activeChatId],
   )
 
-  const wsRef = useRef<WebSocket | null>(null)
-  const streamingAccRef = useRef('')
-  const [streamingText, setStreamingText] = useState('')
-  const connectingRef = useRef(false)
-  const lastSentCharacterRef = useRef<unknown>(null)
-  const [connectionState, setConnectionState] = useState<ConnectionState>('idle')
-
-  const sendContext = useCallback(() => {
-    const chatId = useAppStore.getState().activeChatId
-    const ws = wsRef.current
-    if (!chatId || !ws || ws.readyState !== WebSocket.OPEN) return
-
-    const state = useAppStore.getState()
-    if (state.character === lastSentCharacterRef.current) return
-    lastSentCharacterRef.current = state.character
-    const existingChat = state.chats.find((c) => c.id === chatId)
-    const existingIds = Object.keys(existingChat?.itemIdIndex ?? {})
-      .map((k) => parseInt(k.slice(1), 10))
-      .filter((n) => !isNaN(n))
-    const idOffset = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 0
-
-    const contextPayload = buildContextPayload({
-      character: state.character,
-      stashTabs: state.stashTabs,
-      characterCache: state.characterCache,
-      includeAllCharactersInChat: state.includeAllCharactersInChat,
-      activeCharacterPath: state.activeCharacterPath,
-      idOffset,
-    })
-
-    const itemIndex = buildItemIndex(
-      state.character,
-      state.stashTabs,
-      state.characterCache,
-      state.includeAllCharactersInChat,
-      state.activeCharacterPath,
-    )
-    useAppStore.getState().setItemIndex(itemIndex)
-    useAppStore.getState().setChatIdIndex(chatId, getIdIndex(), getStashTabIndex())
-
-    contextPayload.chat_id = chatId
-    contextPayload.chat_mode = useAppStore.getState().chats.find(c => c.id === chatId)?.chatMode ?? 'tools'
-    const contextJson = JSON.stringify(contextPayload, null, 2)
-    setChatContextPayload(chatId, contextJson)
-
-    ws.send(JSON.stringify({ type: 'context', payload: JSON.stringify(contextPayload) }))
-  }, [setChatContextPayload])
-
-  useEffect(() => {
-    sendContext()
-  }, [character, sendContext])
-
-  const connect = useCallback(() => {
-    const chatId = useAppStore.getState().activeChatId
-    if (!chatId) return
-    if (connectingRef.current) return
-    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
-      return
-    }
-
-    connectingRef.current = true
-    setConnectionState('connecting')
-
-    const ws = createChatWebSocket((data) => {
-      if (data.thinking === true) {
-        setChatStreaming(true)
-        return
-      }
-
-      if (data.thinking === false) {
-        return
-      }
-
-      if (data.tool_call) {
-        const tc = data.tool_call as { name: string; args: Record<string, unknown> }
-        addMessageToChat(chatId, {
-          role: 'system',
-          content: `${tc.name}(${Object.entries(tc.args || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')})`,
-          toolCall: tc,
-        })
-        return
-      }
-
-      if (data.tool_result) {
-        const tr = data.tool_result as { name: string; result: unknown }
-        addMessageToChat(chatId, {
-          role: 'system',
-          content: '',
-          toolResult: tr,
-        })
-        return
-      }
-
-      const text = String(data.text ?? '')
-      const done = Boolean(data.done)
-
-      streamingAccRef.current += text
-      setStreamingText(streamingAccRef.current)
-      if (done) {
-        const content = streamingAccRef.current.trim()
-        streamingAccRef.current = ''
-        setStreamingText('')
-        if (content) {
-          addMessageToChat(chatId, { role: 'assistant', content })
-        }
-        setChatStreaming(false)
-      } else {
-        setChatStreaming(true)
-      }
-    })
-
-    ws.onopen = () => {
-      connectingRef.current = false
-      setConnectionState('connected')
-      sendContext()
-    }
-
-    ws.onerror = () => {
-      connectingRef.current = false
-      wsRef.current = null
-      setConnectionState('error')
-    }
-
-    ws.onclose = () => {
-      connectingRef.current = false
-      if (wsRef.current === ws) {
-        wsRef.current = null
-        setConnectionState('error')
-      }
-    }
-
-    wsRef.current = ws
-  }, [addMessageToChat, setChatStreaming, sendContext])
-
-  useEffect(() => {
-    if (!activeChat || !activeChat.itemIdIndex || Object.keys(activeChat.itemIdIndex).length === 0) return
-    useAppStore.getState().setIdIndex(activeChat.itemIdIndex)
-    useAppStore.getState().setStashTabIndex(activeChat.itemStashTabIndex)
-  }, [activeChat])
-
-  useEffect(() => {
-    if (!activeChatId) return
-    connect()
-    return () => {
-      setChatStreaming(false)
-      streamingAccRef.current = ''
-      setStreamingText('')
-      connectingRef.current = false
-      lastSentCharacterRef.current = null
-      if (wsRef.current) {
-        wsRef.current.onopen = null
-        wsRef.current.onclose = null
-        wsRef.current.onerror = null
-        wsRef.current.close()
-        wsRef.current = null
-      }
-    }
-  }, [activeChatId, includeAllCharactersInChat, connect, setChatStreaming])
-
-  const handleSend = useCallback((message: string) => {
-    const chatId = useAppStore.getState().activeChatId
-    if (!chatId) return
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      addMessageToChat(chatId, { role: 'user', content: message })
-      setChatStreaming(true)
-      wsRef.current.send(JSON.stringify({ type: 'message', payload: message }))
-    }
-  }, [addMessageToChat, setChatStreaming])
+  const { connectionState, streamingText, connect, sendMessage } = useChatConnection()
 
   const messages = activeChat?.messages ?? []
   const charCount = Object.keys(characterCache).length
@@ -368,7 +147,7 @@ export function ChatPanel() {
             )}
           </div>
         )}
-        <ChatInput onSend={handleSend} disabled={chatStreaming || connectionState !== 'connected'} />
+        <ChatInput onSend={sendMessage} disabled={chatStreaming || connectionState !== 'connected'} />
     </div>
   )
 }

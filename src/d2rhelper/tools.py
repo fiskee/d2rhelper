@@ -190,29 +190,31 @@ def _progression_text(ap: Any) -> str:
 
 def _summarize_quests(quest_data: list[dict]) -> dict[str, Any]:
     result: dict[str, Any] = {}
-    try:
-        for q in quest_data:
-            diff = q.get("difficulty", "?")
-            result[diff] = {
-                "den_of_evil": q.get("den_of_evil", False),
-                "radament": q.get("radament", False),
-                "golden_bird": q.get("golden_bird", False),
-                "socket_quest_available": q.get("socket_quest_available", False),
-                "resistance_scroll": q.get("resistance_scroll", False),
-            }
-    except Exception:
-        pass
+    for q in quest_data:
+        if not isinstance(q, dict):
+            continue
+        diff = str(q.get("difficulty", "?"))
+        result[diff] = {
+            "den_of_evil": bool(q.get("den_of_evil", False)),
+            "radament": bool(q.get("radament", False)),
+            "golden_bird": bool(q.get("golden_bird", False)),
+            "socket_quest_available": bool(q.get("socket_quest_available", False)),
+            "resistance_scroll": bool(q.get("resistance_scroll", False)),
+        }
     return result
 
 
 def _summarize_waypoints(waypoints: list[dict]) -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
-    try:
-        for w in waypoints:
-            diff = w.get("difficulty", "?")
-            result[diff] = w.get("waypoints", []) or []
-    except Exception:
-        pass
+    for w in waypoints:
+        if not isinstance(w, dict):
+            continue
+        diff = str(w.get("difficulty", "?"))
+        raw_waypoints = w.get("waypoints", []) or []
+        if isinstance(raw_waypoints, list):
+            result[diff] = [str(v) for v in raw_waypoints]
+        else:
+            result[diff] = []
     return result
 
 

@@ -89,7 +89,7 @@ class CharacterParser:
                 "hardcore": hardcore,
                 "mtime": mtime,
             }
-        except Exception:
+        except (OSError, UnicodeDecodeError, ValueError):
             return None
 
     def parse_bytes(self, data: bytes) -> D2Character:
@@ -223,7 +223,7 @@ class CharacterParser:
         end = iron_header if iron_header > merc_item_start else len(data)
         try:
             return self.item_parser.parse_items(data, merc_item_start, end)
-        except Exception as exc:
+        except (ValueError, IndexError) as exc:
             self.item_parser.warnings.append(f"mercenary item parse failed: {type(exc).__name__}: {exc}")
             return None
 

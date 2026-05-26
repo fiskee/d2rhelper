@@ -180,7 +180,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   toolCall?: { name: string; args: Record<string, unknown> }
-  toolResult?: { name: string; result: unknown }
+  toolResult?: { name: string; result: unknown; ok?: boolean; error?: string }
 }
 
 export interface Chat {

@@ -15,35 +15,37 @@ interface CleanItem {
   stacks?: number
 }
 
-let _nextId = 0
-let _idIndex: Record<string, ParsedItem> = {}
-let _stashTabIndex: Record<string, number> = {}
-
-export function getNextId(): number {
-  return _nextId
+interface ContextBuildIndices {
+  idIndex: Record<string, ParsedItem>
+  stashTabIndex: Record<string, number>
 }
 
-function initIdCounter(idOffset: number) {
-  _nextId = idOffset
-  _idIndex = {}
-  _stashTabIndex = {}
+interface ContextBundle {
+  payload: Record<string, unknown>
+  idIndex: Record<string, ParsedItem>
+  stashTabIndex: Record<string, number>
 }
 
-export function getIdIndex(): Record<string, ParsedItem> {
-  return _idIndex
+function createIndexState(idOffset: number): {
+  assignId: (item: ParsedItem) => string
+  indices: ContextBuildIndices
+} {
+  let nextId = idOffset
+  const indices: ContextBuildIndices = {
+    idIndex: {},
+    stashTabIndex: {},
+  }
+
+  const assignId = (item: ParsedItem): string => {
+    const id = `i${nextId++}`
+    indices.idIndex[id] = item
+    return id
+  }
+
+  return { assignId, indices }
 }
 
-export function getStashTabIndex(): Record<string, number> {
-  return _stashTabIndex
-}
-
-function assignId(item: ParsedItem): string {
-  const id = `i${_nextId++}`
-  _idIndex[id] = item
-  return id
-}
-
-function itemSummary(item: ParsedItem): CleanItem {
+function itemSummary(item: ParsedItem, assignId: (item: ParsedItem) => string): CleanItem {
   const result: CleanItem = {
     id: assignId(item),
     name: getItemDisplayName(item) || item.code || 'Unknown',
@@ -84,7 +86,7 @@ function itemSummary(item: ParsedItem): CleanItem {
   return result
 }
 
-function mercenarySummary(merc: Mercenary) {
+function mercenarySummary(merc: Mercenary, assignId: (item: ParsedItem) => string) {
   if (!merc.hireling_name) return null
   return {
     name: merc.hireling_name,
@@ -97,7 +99,7 @@ function mercenarySummary(merc: Mercenary) {
         const slotName = Object.entries(EQUIPMENT_SLOTS).find(
           ([pos]) => Number(pos) === i.position,
         )?.[1]?.name
-        return { slot: slotName ?? `slot_${i.position}`, item: itemSummary(i) }
+        return { slot: slotName ?? `slot_${i.position}`, item: itemSummary(i, assignId) }
       }),
   }
 }
@@ -110,7 +112,7 @@ interface CategorizedItems {
   personal_stash: CleanItem[]
 }
 
-function categorizeItems(items: ParsedItem[]): CategorizedItems {
+function categorizeItems(items: ParsedItem[], assignId: (item: ParsedItem) => string): CategorizedItems {
   const result: CategorizedItems = {
     equipment: {},
     belt: [],
@@ -124,23 +126,23 @@ function categorizeItems(items: ParsedItem[]): CategorizedItems {
       const slotName = Object.entries(EQUIPMENT_SLOTS).find(
         ([pos]) => Number(pos) === item.position,
       )?.[1]?.name
-      result.equipment[slotName ?? `slot_${item.position}`] = itemSummary(item)
+      result.equipment[slotName ?? `slot_${item.position}`] = itemSummary(item, assignId)
     } else if (item.location === 2) {
-      result.belt.push(itemSummary(item))
+      result.belt.push(itemSummary(item, assignId))
     } else if (item.location === 0 && item.container === 1) {
-      result.inventory.push(itemSummary(item))
+      result.inventory.push(itemSummary(item, assignId))
     } else if (item.location === 0 && item.container === 4) {
-      result.cube.push(itemSummary(item))
+      result.cube.push(itemSummary(item, assignId))
     } else if (item.location === 0 && item.container === 5) {
-      result.personal_stash.push(itemSummary(item))
+      result.personal_stash.push(itemSummary(item, assignId))
     }
   }
 
   return result
 }
 
-function characterSummary(c: D2Character) {
-  const cats = categorizeItems(c.items)
+function characterSummary(c: D2Character, assignId: (item: ParsedItem) => string) {
+  const cats = categorizeItems(c.items, assignId)
   return {
     name: c.name,
     level: c.level,
@@ -156,7 +158,7 @@ function characterSummary(c: D2Character) {
     quest_data: c.quest_data,
     waypoints: c.waypoints,
     locations: c.locations,
-    mercenary: mercenarySummary(c.mercenary),
+    mercenary: mercenarySummary(c.mercenary, assignId),
     equipment: cats.equipment,
     belt: cats.belt,
     inventory: cats.inventory,
@@ -165,15 +167,50 @@ function characterSummary(c: D2Character) {
   }
 }
 
-function stashTabSummary(tab: SharedStashTab) {
+function stashTabSummary(
+  tab: SharedStashTab,
+  assignId: (item: ParsedItem) => string,
+  stashTabIndex: Record<string, number>,
+) {
   for (const item of tab.items) {
     const id = assignId(item)
-    _stashTabIndex[id] = tab.index
+    stashTabIndex[id] = tab.index
   }
   return {
     index: tab.index,
     gold: tab.gold,
-    items: tab.items.map(itemSummary),
+    items: tab.items.map((item) => itemSummary(item, assignId)),
+  }
+}
+
+export function buildContextBundle(state: {
+  character: D2Character | null
+  stashTabs: SharedStashTab[]
+  characterCache: Record<string, D2Character>
+  includeAllCharactersInChat: boolean
+  activeCharacterPath: string | null
+  idOffset?: number
+}): ContextBundle {
+  const { assignId, indices } = createIndexState(state.idOffset ?? 0)
+  const char = state.character
+  const payload: Record<string, unknown> = {
+    character: char ? characterSummary(char, assignId) : null,
+    stash_tabs: state.stashTabs.map((tab) => stashTabSummary(tab, assignId, indices.stashTabIndex)),
+  }
+
+  if (state.includeAllCharactersInChat && char) {
+    const others = Object.entries(state.characterCache)
+      .filter(([path]) => path !== state.activeCharacterPath)
+      .map(([path, c]) => ({ path, ...characterSummary(c, assignId) }))
+    if (others.length > 0) {
+      payload.other_characters = others
+    }
+  }
+
+  return {
+    payload,
+    idIndex: indices.idIndex,
+    stashTabIndex: indices.stashTabIndex,
   }
 }
 
@@ -185,21 +222,5 @@ export function buildContextPayload(state: {
   activeCharacterPath: string | null
   idOffset?: number
 }): Record<string, unknown> {
-  initIdCounter(state.idOffset ?? 0)
-  const char = state.character
-  const payload: Record<string, unknown> = {
-    character: char ? characterSummary(char) : null,
-    stash_tabs: state.stashTabs.map(stashTabSummary),
-  }
-
-  if (state.includeAllCharactersInChat && char) {
-    const others = Object.entries(state.characterCache)
-      .filter(([path]) => path !== state.activeCharacterPath)
-      .map(([path, c]) => ({ path, ...characterSummary(c) }))
-    if (others.length > 0) {
-      payload.other_characters = others
-    }
-  }
-
-  return payload
+  return buildContextBundle(state).payload
 }

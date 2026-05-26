@@ -6,6 +6,9 @@ from d2rhelper.bit_reader import BitReader
 from d2rhelper.models import ParsedItem
 
 
+RECOVERABLE_PARSE_EXCEPTIONS = (ValueError, IndexError)
+
+
 class ItemRecovery:
     def __init__(
         self,
@@ -31,7 +34,7 @@ class ItemRecovery:
         probe.set_position_in_bits(failed_pos)
         try:
             recovered = self.parse_item_basic(index, probe)
-        except Exception:
+        except RECOVERABLE_PARSE_EXCEPTIONS:
             return None
         consumed = probe.position_in_bits - failed_pos
         if consumed <= 0 or consumed > self.max_item_bits:
@@ -52,7 +55,7 @@ class ItemRecovery:
         probe.set_position_in_bits(position)
         try:
             item = self.parse_item_basic(-1, probe)
-        except Exception:
+        except RECOVERABLE_PARSE_EXCEPTIONS:
             return False
         return (
             item.code is not None
@@ -83,7 +86,7 @@ class ItemRecovery:
             probe.set_position_in_bits(candidate)
             try:
                 item = self.parse_item_basic(-1, probe)
-            except Exception:
+            except RECOVERABLE_PARSE_EXCEPTIONS:
                 continue
             if probe.position_in_bits <= candidate:
                 continue

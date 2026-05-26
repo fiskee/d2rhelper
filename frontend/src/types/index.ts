@@ -83,6 +83,7 @@ export interface ParsedItem {
   runeword_name: string | null
   unique_name: string | null
   set_name: string | null
+  set_group: string | null
   weapon_damage: string | null
   raw_flags: number
   identified: boolean

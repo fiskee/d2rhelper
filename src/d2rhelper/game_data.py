@@ -132,6 +132,7 @@ class GameData:
         self._runewords: dict[str, dict[str, str]] = self._build_runewords()
         self._unique_names: dict[int, str] = self._build_unique_names()
         self._set_names: dict[int, str] = self._build_set_names()
+        self._set_groups: dict[int, str] = self._build_set_groups()
 
     @classmethod
     def get_instance(cls, db_path: str | Path | None = None) -> GameData:
@@ -215,6 +216,16 @@ class GameData:
             if not sid:
                 continue
             result[int(sid)] = row["index"]
+        return result
+
+    def _build_set_groups(self) -> dict[int, str]:
+        rows = self.conn.execute("SELECT * FROM setitems").fetchall()
+        result: dict[int, str] = {}
+        for row in rows:
+            sid = row["x_id"]
+            if not sid:
+                continue
+            result[int(sid)] = row["set"]
         return result
 
     def skill_name(self, skill_id: int) -> str | None:
@@ -310,6 +321,9 @@ class GameData:
 
     def set_name(self, sid: int) -> str | None:
         return self._set_names.get(sid)
+
+    def set_group(self, sid: int) -> str | None:
+        return self._set_groups.get(sid)
 
     def hireling_by_id(self, type_id: int) -> dict[str, str] | None:
         row = self.conn.execute(

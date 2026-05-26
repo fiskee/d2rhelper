@@ -11,6 +11,7 @@ from d2rhelper.models import (
     FileData,
     Mercenary,
     ParsedItem,
+    ParsedItemProperty,
     QuestData,
     Skill,
     WaypointStatus,
@@ -163,6 +164,8 @@ class CharacterParser:
         skills = self._parse_skills(data, skill_block_start, character_type)
         quests = self._parse_quest_data(data)
         waypoints = self._parse_waypoints(data)
+
+        self._resolve_set_bonuses(items, merc.items)
 
         return D2Character(
             file_data=file_data,
@@ -379,6 +382,43 @@ class CharacterParser:
                     active.append(name)
             results.append(WaypointStatus(difficulty=diff_name, waypoints=active))
         return results
+
+    @staticmethod
+    def _resolve_set_bonuses(
+        char_items: list[ParsedItem],
+        merc_items: list[ParsedItem],
+    ) -> None:
+        char_counts: dict[str, int] = {}
+        for item in char_items:
+            if item.location == 1 and item.set_group:
+                char_counts[item.set_group] = char_counts.get(item.set_group, 0) + 1
+
+        merc_counts: dict[str, int] = {}
+        for item in merc_items:
+            if item.location == 1 and item.set_group:
+                merc_counts[item.set_group] = merc_counts.get(item.set_group, 0) + 1
+
+        for item in char_items:
+            if not item.set_group:
+                continue
+            count = char_counts.get(item.set_group, 0)
+            for prop in item.properties:
+                if prop.quality_flag >= 2 and prop.display_text:
+                    if count >= prop.quality_flag:
+                        prop.display_text = f"{prop.display_text} ({prop.quality_flag} items)"
+                    else:
+                        prop.display_text = None
+
+        for item in merc_items:
+            if not item.set_group:
+                continue
+            count = merc_counts.get(item.set_group, 0)
+            for prop in item.properties:
+                if prop.quality_flag >= 2 and prop.display_text:
+                    if count >= prop.quality_flag:
+                        prop.display_text = f"{prop.display_text} ({prop.quality_flag} items)"
+                    else:
+                        prop.display_text = None
 
     @staticmethod
     def _read_u16(data: bytes, offset: int) -> int:

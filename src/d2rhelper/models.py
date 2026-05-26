@@ -116,6 +116,7 @@ class ParsedItem(BaseModel):
     runeword_name: str | None = None
     unique_name: str | None = None
     set_name: str | None = None
+    set_group: str | None = None
     weapon_damage: str | None = None
     raw_flags: int
     identified: bool = False

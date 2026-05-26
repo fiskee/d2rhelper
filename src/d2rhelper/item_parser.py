@@ -206,6 +206,7 @@ class ItemParser:
         max_stacks: int | None = None
         unique_name: str | None = None
         set_name: str | None = None
+        set_group: str | None = None
         req_str: int | None = None
         req_dex: int | None = None
         req_level: int | None = None
@@ -234,6 +235,7 @@ class ItemParser:
                     unique_name = self.game_data.unique_name(quality_id)
                 elif quality == ItemQuality.SET and quality_id is not None:
                     set_name = self.game_data.set_name(quality_id)
+                    set_group = self.game_data.set_group(quality_id)
 
                 if runeword:
                     br.skip(16)
@@ -295,6 +297,7 @@ class ItemParser:
             runeword_name=runeword_name,
             unique_name=unique_name,
             set_name=set_name,
+            set_group=set_group,
             weapon_damage=self._weapon_damage_text(code, properties),
             raw_flags=flags,
             identified=identified,

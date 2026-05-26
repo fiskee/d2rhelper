@@ -32,6 +32,15 @@ Open **http://127.0.0.1:8000** in your browser.
 - **Search** - instant item search with word-boundary ranking, autocomplete suggestions, and an option to search across all loaded characters
 - **Sets** - track set item completion across all characters and stash, see which pieces you own and where they are (equipped, inventory, personal stash, shared stash)
 - **Chat** - AI assistant powered by Gemini that knows your characters, items, and stash. Ask about builds, farming strategies, runewords, and gear upgrades. Toggle to include all characters in a single chat session
+
+### Chat modes
+
+When creating a new chat you can pick between two modes:
+
+- **Tools** — the assistant uses tool calls to fetch character overview, search items, and get details on demand. This keeps the conversation lean and works well for targeted questions. The system prompt includes tool instructions instead of raw character JSON.
+- **Full Context** — the entire character and stash snapshot is injected into the system prompt at the start of the chat. Best for broad, open-ended explorations where the assistant needs everything upfront, at the cost of a much larger prompt.
+
+The default mode can be set with the `D2RHELPER_CHAT_MODE` environment variable (`tools` or `full_context`).
 - **Multiple characters** - switch between characters, search or compare across all loaded saves
 - **Session persistence** - your selected character, search queries, chat history, and view state survive page reloads
 

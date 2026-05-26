@@ -61,7 +61,6 @@ class ItemParser:
                 fallback_item = self.recovery.recover_item_from_position(br, idx, failed_pos)
                 if fallback_item is not None:
                     results.append(fallback_item)
-                    self.warnings.append(f"item[{idx}] recovered from failed position (bit {failed_pos})")
                     continue
 
                 fallback = self.recovery.recover_next_item_start(br, failed_pos)
@@ -80,8 +79,6 @@ class ItemParser:
                     self.recovery.nudge_to_plausible_next_start(br)
                     recovered.recovered = True
                     results.append(recovered)
-                    skipped = fallback - failed_pos
-                    self.warnings.append(f"item[{idx}] recovered: shifted {skipped} bits (from bit {failed_pos} to {fallback})")
                 except Exception as recover_exc:
                     placeholder.parse_ok = False
                     results.append(placeholder)

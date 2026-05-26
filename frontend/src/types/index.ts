@@ -187,6 +187,9 @@ export interface Chat {
   characterPath: string | null
   characterType: string | null
   characterName: string | null
+  contextPayload: string | null
+  itemIdIndex: Record<string, ParsedItem>
+  itemStashTabIndex: Record<string, number>
   createdAt: number
   updatedAt: number
 }

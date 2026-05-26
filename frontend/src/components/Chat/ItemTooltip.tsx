@@ -1,8 +1,24 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { ParsedItem } from '../../types'
-import { getItemDisplayName, getItemBaseName } from '../../types'
+import { getItemDisplayName, getItemBaseName, EQUIPMENT_SLOTS } from '../../types'
 import type { DBAttrs } from '../../api/client'
+import { useAppStore } from '../../store/appStore'
+
+function getItemLocation(item: ParsedItem, itemId?: string, stashTabIndex?: Record<string, number>): string | null {
+  if (item.location === 1) {
+    const slotName = Object.entries(EQUIPMENT_SLOTS).find(
+      ([pos]) => Number(pos) === item.position,
+    )?.[1]?.name
+    return slotName ?? 'Equipment'
+  }
+  if (item.location === 2) return 'Belt'
+  if (item.location === 0 && item.container === 1) return 'Inventory'
+  if (item.location === 0 && item.container === 4) return 'Horadric Cube'
+  if (item.location === 0 && item.container === 5) return 'Personal Stash'
+  if (itemId && stashTabIndex?.[itemId] !== undefined) return `Stash Tab ${stashTabIndex[itemId]}`
+  return null
+}
 
 function qualityBorder(quality: string): string {
   switch (quality) {
@@ -35,7 +51,9 @@ function playerQualityString(q: number): string {
   return 'base'
 }
 
-function PlayerTooltip({ item }: { item: ParsedItem }) {
+function PlayerTooltip({ item, itemId }: { item: ParsedItem; itemId?: string }) {
+  const stashTabIndex = useAppStore((s) => s.stashTabIndex)
+  const location = getItemLocation(item, itemId, stashTabIndex)
   const displayName = getItemDisplayName(item)
   const baseName = getItemBaseName(item)
   const quality = playerQualityString(item.quality)
@@ -54,6 +72,7 @@ function PlayerTooltip({ item }: { item: ParsedItem }) {
         {displayName}
       </div>
       {baseName && <div className="text-d2-muted text-xs">{baseName}</div>}
+      <div className="text-d2-muted text-[10px] mt-0.5">{location}</div>
       {item.weapon_damage && (
         <div className="text-d2-ink text-xs mt-0.5">{item.weapon_damage}</div>
       )}
@@ -126,10 +145,12 @@ export function ItemLink({
   name,
   playerItem,
   dbItem,
+  itemId,
 }: {
   name: string
   playerItem?: ParsedItem
   dbItem?: DBAttrs
+  itemId?: string
 }) {
   const [hovered, setHovered] = useState(false)
   const anchorRef = useRef<HTMLSpanElement>(null)
@@ -174,7 +195,7 @@ export function ItemLink({
             style={{ top: pos.top, left: pos.left }}
           >
             {playerItem ? (
-              <PlayerTooltip item={playerItem} />
+              <PlayerTooltip item={playerItem} itemId={itemId} />
             ) : dbItem ? (
               <DBTooltip item={dbItem} />
             ) : null}

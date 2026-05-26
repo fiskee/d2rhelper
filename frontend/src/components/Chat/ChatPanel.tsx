@@ -5,6 +5,7 @@ import { MessageList } from './MessageList'
 import { ChatInput } from './ChatInput'
 import type { ParsedItem, D2Character, SharedStashTab } from '../../types'
 import { getItemDisplayName } from '../../types'
+import { buildContextPayload, getIdIndex, getStashTabIndex } from './contextBuilder'
 
 type ConnectionState = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -55,6 +56,31 @@ function buildItemIndex(
   return index
 }
 
+function ContextBlock({ payload, label }: { payload: string; label: string }) {
+  const [expanded, setExpanded] = useState(false)
+  let parsed: unknown = payload
+  try {
+    parsed = JSON.parse(payload)
+  } catch { /* raw string */ }
+
+  return (
+    <div className="border-b border-d2-border">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-1.5 text-xs text-d2-muted font-body hover:text-d2-ink hover:bg-d2-card transition-colors flex items-center gap-1.5 cursor-pointer"
+      >
+        <span className="font-mono text-[10px]">{expanded ? '\u25BC' : '\u25B6'}</span>
+        {label}
+      </button>
+      {expanded && (
+        <pre className="px-4 pb-3 text-xs text-d2-muted font-mono whitespace-pre-wrap max-h-64 overflow-y-auto border-t border-d2-border/50">
+          {JSON.stringify(parsed, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 export function ChatPanel() {
   const {
     activeChatId,
@@ -63,8 +89,11 @@ export function ChatPanel() {
     includeAllCharactersInChat,
     setIncludeAllCharactersInChat,
     characterCache,
+    character,
+    stashTabs,
     addMessageToChat,
     setChatStreaming,
+    setChatContextPayload,
   } = useAppStore()
 
   const activeChat = useMemo(
@@ -116,77 +145,27 @@ export function ChatPanel() {
       setConnectionState('connected')
 
       const state = useAppStore.getState()
-      const char = state.character
-
-      let idCounter = 0
-      const idIndex: Record<string, ParsedItem> = {}
-
-      function tagItem(item: ParsedItem): Record<string, unknown> {
-        const id = `i${idCounter++}`
-        idIndex[id] = item
-        return { id, ...item }
-      }
-
-      function serialiseCharacter(c: typeof char) {
-        if (!c) return null
-        return {
-          name: c.name,
-          level: c.level,
-          character_type: c.character_type,
-          status: c.status,
-          act_progression: c.act_progression,
-          quest_data: c.quest_data,
-          waypoints: c.waypoints,
-          locations: c.locations,
-          attributes: c.attributes,
-          skills: c.skills,
-          items: c.items.map(tagItem),
-          mercenary: {
-            merc_id: c.mercenary.merc_id,
-            name_id: c.mercenary.name_id,
-            type_id: c.mercenary.type_id,
-            experience: c.mercenary.experience,
-            hireling_name: c.mercenary.hireling_name,
-            hireling_subtype: c.mercenary.hireling_subtype,
-            hireling_skills: c.mercenary.hireling_skills,
-            items: c.mercenary.items.map(tagItem),
-          },
-        }
-      }
-
-      const taggedStashTabs = state.stashTabs.map((tab) => ({
-        ...tab,
-        items: tab.items.map(tagItem),
-      }))
-
-      const contextPayload: Record<string, unknown> = {
-        chat_id: chatId,
-        character: serialiseCharacter(char),
-        stash_tabs: taggedStashTabs,
-      }
-
-      if (state.includeAllCharactersInChat) {
-        const otherCharacters = Object.entries(state.characterCache)
-          .filter(([path]) => path !== state.activeCharacterPath)
-          .map(([path, c]) => {
-            const data = serialiseCharacter(c)
-            return data ? { path, ...data } : null
-          })
-          .filter(Boolean)
-        if (otherCharacters.length > 0) {
-          contextPayload.other_characters = otherCharacters
-        }
-      }
+      const contextPayload = buildContextPayload({
+        character: state.character,
+        stashTabs: state.stashTabs,
+        characterCache: state.characterCache,
+        includeAllCharactersInChat: state.includeAllCharactersInChat,
+        activeCharacterPath: state.activeCharacterPath,
+      })
 
       const itemIndex = buildItemIndex(
-        char,
+        state.character,
         state.stashTabs,
         state.characterCache,
         state.includeAllCharactersInChat,
         state.activeCharacterPath,
       )
       useAppStore.getState().setItemIndex(itemIndex)
-      useAppStore.getState().setIdIndex(idIndex)
+      useAppStore.getState().setChatIdIndex(chatId, getIdIndex(), getStashTabIndex())
+
+      contextPayload.chat_id = chatId
+      const contextJson = JSON.stringify(contextPayload, null, 2)
+      setChatContextPayload(chatId, contextJson)
 
       ws.send(JSON.stringify({ type: 'context', payload: JSON.stringify(contextPayload) }))
     }
@@ -206,7 +185,13 @@ export function ChatPanel() {
     }
 
     wsRef.current = ws
-  }, [addMessageToChat, setChatStreaming])
+  }, [addMessageToChat, setChatStreaming, setChatContextPayload])
+
+  useEffect(() => {
+    if (!activeChat || !activeChat.itemIdIndex || Object.keys(activeChat.itemIdIndex).length === 0) return
+    useAppStore.getState().setIdIndex(activeChat.itemIdIndex)
+    useAppStore.getState().setStashTabIndex(activeChat.itemStashTabIndex)
+  }, [activeChat])
 
   useEffect(() => {
     if (!activeChatId) return
@@ -238,6 +223,18 @@ export function ChatPanel() {
 
   const messages = activeChat?.messages ?? []
   const charCount = Object.keys(characterCache).length
+
+  const previewPayload = useMemo(() => {
+    if (connectionState !== 'idle' || !activeChatId || !character) return null
+    const ctx = buildContextPayload({
+      character,
+      stashTabs,
+      characterCache,
+      includeAllCharactersInChat,
+      activeCharacterPath: useAppStore.getState().activeCharacterPath,
+    })
+    return JSON.stringify(ctx, null, 2)
+  }, [connectionState, activeChatId, character, stashTabs, characterCache, includeAllCharactersInChat])
 
   return (
     <div className="flex flex-col h-full bg-d2-surface border border-d2-border rounded-lg overflow-hidden">
@@ -286,6 +283,14 @@ export function ChatPanel() {
               Retry
             </button>
           </div>
+        )}
+
+        {connectionState === 'idle' && previewPayload && (
+          <ContextBlock payload={previewPayload} label="Preview system context (refresh page to update)" />
+        )}
+
+        {connectionState === 'connected' && activeChat?.contextPayload && (
+          <ContextBlock payload={activeChat.contextPayload} label="System context sent to LLM" />
         )}
 
         <MessageList messages={messages} />

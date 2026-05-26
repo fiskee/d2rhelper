@@ -51,7 +51,7 @@ function PlayerItemLink({ name, itemId }: { name: string; itemId: string }) {
   const idIndex = useAppStore((s) => s.idIndex)
   const item = idIndex[itemId]
   if (!item) return <span>{name}</span>
-  return <ItemLink name={name} playerItem={item} />
+  return <ItemLink name={name} playerItem={item} itemId={itemId} />
 }
 
 function MarkdownContent({ content }: { content: string }) {

@@ -57,6 +57,9 @@ function makeChat(state: {
     characterPath: state.activeCharacterPath,
     characterType: state.character?.character_type ?? null,
     characterName: state.character?.name ?? null,
+    contextPayload: null,
+    itemIdIndex: {},
+    itemStashTabIndex: {},
     createdAt: Date.now(),
     updatedAt: Date.now(),
   }
@@ -96,14 +99,19 @@ interface AppState {
   includeAllCharactersInChat: boolean
   itemIndex: Record<string, ParsedItem[]>
   idIndex: Record<string, ParsedItem>
+  stashTabIndex: Record<string, number>
+
   createChat: () => void
   deleteChat: (id: string) => void
   setActiveChat: (id: string) => void
   addMessageToChat: (chatId: string, msg: ChatMessage) => void
   setChatStreaming: (s: boolean) => void
+  setChatContextPayload: (chatId: string, payload: string) => void
+  setChatIdIndex: (chatId: string, idIndex: Record<string, ParsedItem>, stashTabIndex: Record<string, number>) => void
   setIncludeAllCharactersInChat: (v: boolean) => void
   setItemIndex: (idx: Record<string, ParsedItem[]>) => void
   setIdIndex: (idx: Record<string, ParsedItem>) => void
+  setStashTabIndex: (idx: Record<string, number>) => void
   fetchChatsFromBackend: () => Promise<void>
   refreshCharacter: () => Promise<void>
 
@@ -170,6 +178,9 @@ export const useAppStore = create<AppState>()(
               id: bc.id,
               title: bc.title,
               messages: [],
+              contextPayload: null,
+              itemIdIndex: {},
+              itemStashTabIndex: {},
               characterPath: bc.character_path,
               characterType: bc.character_type,
               characterName: bc.character_name,
@@ -256,6 +267,7 @@ export const useAppStore = create<AppState>()(
       includeAllCharactersInChat: false,
       itemIndex: {},
       idIndex: {},
+      stashTabIndex: {},
 
       createChat: () => {
         const chat = makeChat(get())
@@ -314,11 +326,27 @@ export const useAppStore = create<AppState>()(
 
       setChatStreaming: (chatStreaming) => set({ chatStreaming }),
 
+      setChatContextPayload: (chatId, payload) =>
+        set((s) => ({
+          chats: s.chats.map((c) => (c.id === chatId ? { ...c, contextPayload: payload } : c)),
+        })),
+
       setIncludeAllCharactersInChat: (includeAllCharactersInChat) => set({ includeAllCharactersInChat }),
 
       setItemIndex: (itemIndex) => set({ itemIndex }),
 
       setIdIndex: (idIndex) => set({ idIndex }),
+
+      setStashTabIndex: (stashTabIndex) => set({ stashTabIndex }),
+
+      setChatIdIndex: (chatId, idIndex, stashTabIndex) =>
+        set((s) => ({
+          idIndex,
+          stashTabIndex,
+          chats: s.chats.map((c) =>
+            c.id === chatId ? { ...c, itemIdIndex: idIndex, itemStashTabIndex: stashTabIndex } : c,
+          ),
+        })),
 
       setData: null,
       fetchSetData: async () => {
@@ -358,7 +386,6 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage: () => {
         return () => {
           const store = useAppStore.getState()
-          if (store.chats.length > 0) return
           get('d2rhelper-chat-storage').then((raw) => {
             if (!raw || typeof raw !== 'string') return
             try {
@@ -372,6 +399,7 @@ export const useAppStore = create<AppState>()(
                 }
               }
             } catch { /* ignore parse errors */ }
+            del('d2rhelper-chat-storage')
           })
         }
       },

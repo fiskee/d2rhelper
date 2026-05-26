@@ -418,9 +418,8 @@ async def list_chats() -> JSONResponse:
 @app.delete("/api/chats/{chat_id}")
 async def delete_chat(chat_id: str) -> JSONResponse:
     store = get_chat_store()
-    if not store.chat_exists(chat_id):
-        return JSONResponse(content={"error": "Chat not found"}, status_code=404)
-    store.delete_chat(chat_id)
+    if store.chat_exists(chat_id):
+        store.delete_chat(chat_id)
     return JSONResponse(content={"ok": True})
 
 

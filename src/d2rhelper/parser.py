@@ -11,7 +11,6 @@ from d2rhelper.models import (
     FileData,
     Mercenary,
     ParsedItem,
-    ParsedItemProperty,
     QuestData,
     Skill,
     WaypointStatus,

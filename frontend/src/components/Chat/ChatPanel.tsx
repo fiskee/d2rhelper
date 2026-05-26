@@ -105,8 +105,53 @@ export function ChatPanel() {
   const streamingAccRef = useRef('')
   const [streamingText, setStreamingText] = useState('')
   const connectingRef = useRef(false)
-  const skipNextRef = useRef(false)
+  const lastSentCharacterRef = useRef<unknown>(null)
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle')
+
+  const sendContext = useCallback(() => {
+    const chatId = useAppStore.getState().activeChatId
+    const ws = wsRef.current
+    if (!chatId || !ws || ws.readyState !== WebSocket.OPEN) return
+
+    const state = useAppStore.getState()
+    if (state.character === lastSentCharacterRef.current) return
+    lastSentCharacterRef.current = state.character
+    const existingChat = state.chats.find((c) => c.id === chatId)
+    const existingIds = Object.keys(existingChat?.itemIdIndex ?? {})
+      .map((k) => parseInt(k.slice(1), 10))
+      .filter((n) => !isNaN(n))
+    const idOffset = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 0
+
+    const contextPayload = buildContextPayload({
+      character: state.character,
+      stashTabs: state.stashTabs,
+      characterCache: state.characterCache,
+      includeAllCharactersInChat: state.includeAllCharactersInChat,
+      activeCharacterPath: state.activeCharacterPath,
+      idOffset,
+    })
+
+    const itemIndex = buildItemIndex(
+      state.character,
+      state.stashTabs,
+      state.characterCache,
+      state.includeAllCharactersInChat,
+      state.activeCharacterPath,
+    )
+    useAppStore.getState().setItemIndex(itemIndex)
+    useAppStore.getState().setChatIdIndex(chatId, getIdIndex(), getStashTabIndex())
+
+    contextPayload.chat_id = chatId
+    contextPayload.chat_mode = useAppStore.getState().chats.find(c => c.id === chatId)?.chatMode ?? 'tools'
+    const contextJson = JSON.stringify(contextPayload, null, 2)
+    setChatContextPayload(chatId, contextJson)
+
+    ws.send(JSON.stringify({ type: 'context', payload: JSON.stringify(contextPayload) }))
+  }, [setChatContextPayload])
+
+  useEffect(() => {
+    sendContext()
+  }, [character, sendContext])
 
   const connect = useCallback(() => {
     const chatId = useAppStore.getState().activeChatId
@@ -118,7 +163,6 @@ export function ChatPanel() {
 
     connectingRef.current = true
     setConnectionState('connecting')
-    skipNextRef.current = true
 
     const ws = createChatWebSocket((data) => {
       if (data.thinking === true) {
@@ -153,10 +197,6 @@ export function ChatPanel() {
       const text = String(data.text ?? '')
       const done = Boolean(data.done)
 
-      if (skipNextRef.current) {
-        skipNextRef.current = false
-        if (done) return
-      }
       streamingAccRef.current += text
       setStreamingText(streamingAccRef.current)
       if (done) {
@@ -175,32 +215,7 @@ export function ChatPanel() {
     ws.onopen = () => {
       connectingRef.current = false
       setConnectionState('connected')
-
-      const state = useAppStore.getState()
-      const contextPayload = buildContextPayload({
-        character: state.character,
-        stashTabs: state.stashTabs,
-        characterCache: state.characterCache,
-        includeAllCharactersInChat: state.includeAllCharactersInChat,
-        activeCharacterPath: state.activeCharacterPath,
-      })
-
-      const itemIndex = buildItemIndex(
-        state.character,
-        state.stashTabs,
-        state.characterCache,
-        state.includeAllCharactersInChat,
-        state.activeCharacterPath,
-      )
-      useAppStore.getState().setItemIndex(itemIndex)
-      useAppStore.getState().setChatIdIndex(chatId, getIdIndex(), getStashTabIndex())
-
-      contextPayload.chat_id = chatId
-      contextPayload.chat_mode = useAppStore.getState().chats.find(c => c.id === chatId)?.chatMode ?? 'tools'
-      const contextJson = JSON.stringify(contextPayload, null, 2)
-      setChatContextPayload(chatId, contextJson)
-
-      ws.send(JSON.stringify({ type: 'context', payload: JSON.stringify(contextPayload) }))
+      sendContext()
     }
 
     ws.onerror = () => {
@@ -218,7 +233,7 @@ export function ChatPanel() {
     }
 
     wsRef.current = ws
-  }, [addMessageToChat, setChatStreaming, setChatContextPayload])
+  }, [addMessageToChat, setChatStreaming, sendContext])
 
   useEffect(() => {
     if (!activeChat || !activeChat.itemIdIndex || Object.keys(activeChat.itemIdIndex).length === 0) return
@@ -234,6 +249,7 @@ export function ChatPanel() {
       streamingAccRef.current = ''
       setStreamingText('')
       connectingRef.current = false
+      lastSentCharacterRef.current = null
       if (wsRef.current) {
         wsRef.current.onopen = null
         wsRef.current.onclose = null

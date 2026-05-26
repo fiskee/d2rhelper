@@ -19,8 +19,12 @@ let _nextId = 0
 let _idIndex: Record<string, ParsedItem> = {}
 let _stashTabIndex: Record<string, number> = {}
 
-function resetIdCounter() {
-  _nextId = 0
+export function getNextId(): number {
+  return _nextId
+}
+
+function initIdCounter(idOffset: number) {
+  _nextId = idOffset
   _idIndex = {}
   _stashTabIndex = {}
 }
@@ -179,8 +183,9 @@ export function buildContextPayload(state: {
   characterCache: Record<string, D2Character>
   includeAllCharactersInChat: boolean
   activeCharacterPath: string | null
+  idOffset?: number
 }): Record<string, unknown> {
-  resetIdCounter()
+  initIdCounter(state.idOffset ?? 0)
   const char = state.character
   const payload: Record<string, unknown> = {
     character: char ? characterSummary(char) : null,

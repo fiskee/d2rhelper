@@ -342,13 +342,20 @@ export const useAppStore = create<AppState>()(
       setStashTabIndex: (stashTabIndex) => set({ stashTabIndex }),
 
       setChatIdIndex: (chatId, idIndex, stashTabIndex) =>
-        set((s) => ({
-          idIndex,
-          stashTabIndex,
-          chats: s.chats.map((c) =>
-            c.id === chatId ? { ...c, itemIdIndex: idIndex, itemStashTabIndex: stashTabIndex } : c,
-          ),
-        })),
+        set((s) => {
+          const existingChat = s.chats.find((c) => c.id === chatId)
+          const mergedIdIndex = { ...existingChat?.itemIdIndex, ...idIndex }
+          const mergedStashIndex = { ...existingChat?.itemStashTabIndex, ...stashTabIndex }
+          return {
+            idIndex: mergedIdIndex,
+            stashTabIndex: mergedStashIndex,
+            chats: s.chats.map((c) =>
+              c.id === chatId
+                ? { ...c, itemIdIndex: mergedIdIndex, itemStashTabIndex: mergedStashIndex }
+                : c,
+            ),
+          }
+        }),
 
       setData: null,
       fetchSetData: async () => {

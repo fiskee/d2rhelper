@@ -419,8 +419,7 @@ async def chat_websocket(ws: WebSocket) -> None:
                         ),
                     )
 
-                mode_label = "Tools" if chat_mode == "tools" else "Context"
-                await ws.send_text(json.dumps({"text": f"Ready ({mode_label} mode). Ask me about your character!", "done": True}))
+                await ws.send_text(json.dumps({"done": True}))
 
             elif msg_type == "message":
                 if chat_id:

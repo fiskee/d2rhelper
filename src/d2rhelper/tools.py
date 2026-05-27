@@ -4,6 +4,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from d2rhelper.services.game_data_provider import get_game_data
+from d2rhelper.services.game_lookup import list_class_skills, lookup_game_item, lookup_skill_data
+from d2rhelper.services.skill_damage import estimate_skill_damage
+
 
 @dataclass
 class ItemRecord:
@@ -428,6 +432,63 @@ def get_materials_summary(store: CharacterContextStore) -> dict[str, Any]:
     return result if result else {"note": "No materials found in stash"}
 
 
+def calculate_skill_damage(args: dict[str, Any]) -> dict[str, Any]:
+    class_name = str(args.get("class_name", "") or "")
+    skill_name = str(args.get("skill_name", "") or "")
+    if not class_name or not skill_name:
+        return {"ok": False, "error": "class_name and skill_name are required"}
+
+    raw_synergy = args.get("synergy_levels", {})
+    synergy_levels: dict[str, int] = {}
+    if isinstance(raw_synergy, dict):
+        for k, v in raw_synergy.items():
+            try:
+                synergy_levels[str(k)] = int(v)
+            except (TypeError, ValueError):
+                continue
+
+    return estimate_skill_damage(
+        get_game_data(),
+        class_name=class_name,
+        skill_name=skill_name,
+        skill_level=int(args.get("skill_level", 1) or 1),
+        plus_skills=int(args.get("plus_skills", 0) or 0),
+        synergy_levels=synergy_levels,
+        enemy_resist=float(args.get("enemy_resist", 0.0) or 0.0),
+        sunder=bool(args.get("sunder", False)),
+    )
+
+
+def lookup_skill(args: dict[str, Any]) -> dict[str, Any]:
+    skill_name = str(args.get("skill_name", "") or "")
+    if not skill_name:
+        return {"ok": False, "error": "skill_name is required"}
+    class_name = str(args.get("class_name", "") or "")
+    result = lookup_skill_data(get_game_data(), skill_name, class_name)
+    if result is None:
+        return {"ok": False, "error": f"Skill not found: {skill_name}"}
+    return {"ok": True, **result}
+
+
+def list_skills_for_class(args: dict[str, Any]) -> dict[str, Any]:
+    class_name = str(args.get("class_name", "") or "")
+    if not class_name:
+        return {"ok": False, "error": "class_name is required"}
+    result = list_class_skills(get_game_data(), class_name)
+    return {"ok": True, **result}
+
+
+def lookup_item(args: dict[str, Any]) -> dict[str, Any]:
+    item_name = str(args.get("item_name", "") or "")
+    if not item_name:
+        return {"ok": False, "error": "item_name is required"}
+    item_type = str(args.get("item_type", "") or "")
+    result = lookup_game_item(get_game_data(), item_name, item_type)
+    if result is None:
+        return {"ok": False, "error": f"Item not found: {item_name}"}
+    return {"ok": True, "item": result}
+
+
 TOOL_DEFINITIONS = [
     {
         "name": "get_character_overview",
@@ -443,6 +504,62 @@ TOOL_DEFINITIONS = [
         "name": "get_materials_summary",
         "description": "Get a compact inventory of ALL crafting materials across personal and shared stashes: rune counts (by name without 'Rune' suffix), gem counts (by full name including quality prefix), essences, and keys. Returns counts not individual items — use this instead of search_stash for seeing what runes, gems, essences, and keys the player owns. Run this early when evaluating what the player can craft.",
         "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "calculate_skill_damage",
+        "description": "Calculate estimated displayed skill damage from game data for a class skill. Supports hard skill level, +skills, explicit synergy skill levels, enemy resistance, and optional sunder clamp.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "class_name": {"type": "string", "description": "Class name or code, e.g. sorceress, warlock, sor, war"},
+                "skill_name": {"type": "string", "description": "Exact or partial skill name, e.g. Blizzard"},
+                "skill_level": {"type": "integer", "description": "Hard points in the skill", "minimum": 1},
+                "plus_skills": {"type": "integer", "description": "Additional skill levels from gear", "default": 0},
+                "synergy_levels": {
+                    "type": "object",
+                    "description": "Map of synergy skill name to hard level, e.g. {\"Ice Bolt\": 13, \"Ice Blast\": 20}",
+                    "additionalProperties": {"type": "integer"},
+                },
+                "enemy_resist": {"type": "number", "description": "Enemy resistance percentage before modifiers", "default": 0},
+                "sunder": {"type": "boolean", "description": "If true and enemy_resist > 95, clamp to 95", "default": False},
+            },
+            "required": ["class_name", "skill_name", "skill_level"],
+        },
+    },
+    {
+        "name": "lookup_skill_data",
+        "description": "Lookup a class skill from game data and return requirements, tree location, prerequisites, description, and core damage/synergy fields.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "skill_name": {"type": "string", "description": "Skill name, e.g. Blizzard"},
+                "class_name": {"type": "string", "description": "Optional class name/code, e.g. sorceress, warlock, sor, war"},
+            },
+            "required": ["skill_name"],
+        },
+    },
+    {
+        "name": "list_class_skills",
+        "description": "List all skills for a class from game data with required level, tree position, and prerequisites.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "class_name": {"type": "string", "description": "Class name/code, e.g. warlock, sorceress, war, sor"},
+            },
+            "required": ["class_name"],
+        },
+    },
+    {
+        "name": "lookup_game_item",
+        "description": "Lookup an item in game data (runeword/unique/set/base/skill entry) and return canonical stats/properties.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "item_name": {"type": "string", "description": "Item name, e.g. Spirit, Harlequin Crest, Crystal Sword"},
+                "item_type": {"type": "string", "description": "Optional type hint: rw|runeword|unq|unique|set|base|skill"},
+            },
+            "required": ["item_name"],
+        },
     },
     {
         "name": "search_character_items",
@@ -508,5 +625,13 @@ def execute_tool_call(name: str, args: dict[str, Any], store: CharacterContextSt
         return search_items(args.get("query", ""), store, "stash")
     elif name == "get_item_details":
         return get_item_details(args.get("item_id", ""), store)
+    elif name == "calculate_skill_damage":
+        return calculate_skill_damage(args)
+    elif name == "lookup_skill_data":
+        return lookup_skill(args)
+    elif name == "list_class_skills":
+        return list_skills_for_class(args)
+    elif name == "lookup_game_item":
+        return lookup_item(args)
     else:
         return {"error": f"Unknown tool: {name}"}

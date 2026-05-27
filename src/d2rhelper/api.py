@@ -22,6 +22,8 @@ from d2rhelper.services import (
     lookup_item_data,
     search_items,
 )
+from d2rhelper.services.game_lookup import list_class_skills, lookup_skill_data
+from d2rhelper.services.skill_damage import estimate_skill_damage
 from d2rhelper.casc import find_all_character_files, find_local_character_file, find_local_shared_stash_file
 
 load_dotenv()
@@ -50,6 +52,16 @@ def _error_response(exc: Exception, status_code: int = 500) -> JSONResponse:
 class ParseRequest(BaseModel):
     character_path: str
     stash_path: str | None = None
+
+
+class SkillDamageRequest(BaseModel):
+    class_name: str
+    skill_name: str
+    skill_level: int
+    plus_skills: int = 0
+    synergy_levels: dict[str, int] = {}
+    enemy_resist: float = 0.0
+    sunder: bool = False
 
 
 @app.get("/api/autocomplete")
@@ -164,6 +176,38 @@ async def lookup_item(name: str = "", type: str = "") -> JSONResponse:
 
     gd = get_game_data()
     return JSONResponse(content=lookup_item_data(gd, name, type))
+
+
+@app.get("/api/skills/lookup")
+async def lookup_skill(name: str = "", class_name: str = "") -> JSONResponse:
+    if not name or len(name.strip()) < 2:
+        return JSONResponse(content=None)
+    gd = get_game_data()
+    return JSONResponse(content=lookup_skill_data(gd, name, class_name))
+
+
+@app.get("/api/skills/class")
+async def list_skills_for_class(class_name: str = "") -> JSONResponse:
+    if not class_name:
+        return JSONResponse(content={"error": "class_name is required"}, status_code=400)
+    gd = get_game_data()
+    return JSONResponse(content=list_class_skills(gd, class_name))
+
+
+@app.post("/api/skills/damage")
+async def calculate_skill_damage(req: SkillDamageRequest) -> JSONResponse:
+    gd = get_game_data()
+    result = estimate_skill_damage(
+        gd,
+        class_name=req.class_name,
+        skill_name=req.skill_name,
+        skill_level=req.skill_level,
+        plus_skills=req.plus_skills,
+        synergy_levels=req.synergy_levels,
+        enemy_resist=req.enemy_resist,
+        sunder=req.sunder,
+    )
+    return JSONResponse(content=result)
 
 
 _frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"

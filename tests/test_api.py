@@ -349,7 +349,13 @@ def test_chat_websocket_missing_api_key(client: "TestClient", monkeypatch) -> No
         assert "GEMINI_API_KEY not configured" in payload["text"]
 
 
-def _install_fake_genai(monkeypatch: pytest.MonkeyPatch, *, tools_mode: bool) -> None:
+def _install_fake_genai(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    tools_mode: bool,
+    tool_call_name: str = "get_character_overview",
+    tool_call_args: dict | None = None,
+) -> None:
     class FakePart:
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
@@ -399,7 +405,7 @@ def _install_fake_genai(monkeypatch: pytest.MonkeyPatch, *, tools_mode: bool) ->
         def generate_content(self, **kwargs):
             self.calls += 1
             if self.calls == 1:
-                fn_call = FakeFunctionCall("get_character_overview", {}, "fc-1")
+                fn_call = FakeFunctionCall(tool_call_name, tool_call_args or {}, "fc-1")
                 return FakeResponse(function_calls=[fn_call], content=FakeContent(parts=[], role="model"))
             return FakeResponse(text="Tool mode final response", content=FakeContent(parts=[], role="model"))
 
@@ -512,3 +518,47 @@ def test_chat_websocket_full_context_flow(client: "TestClient", monkeypatch) -> 
                 break
 
         assert "Full context final response" in text_acc
+
+
+def test_chat_websocket_tools_mode_lookup_skill_tool(client: "TestClient", monkeypatch) -> None:
+    _install_fake_genai(
+        monkeypatch,
+        tools_mode=True,
+        tool_call_name="lookup_skill_data",
+        tool_call_args={"skill_name": "Blizzard", "class_name": "sorceress"},
+    )
+
+    context_payload = {
+        "chat_id": f"ws-lookup-{uuid4()}",
+        "chat_mode": "tools",
+        "character": None,
+        "stash_tabs": [],
+    }
+
+    with client.websocket_connect("/api/chat") as ws:
+        ws.send_text(json.dumps({"type": "context", "payload": json.dumps(context_payload)}))
+        ack = json.loads(ws.receive_text())
+        assert ack["done"] is True
+
+        ws.send_text(json.dumps({"type": "message", "payload": "check blizzard data"}))
+
+        saw_tool_call = False
+        saw_tool_result = False
+
+        while True:
+            evt = json.loads(ws.receive_text())
+            if "tool_call" in evt:
+                saw_tool_call = True
+                assert evt["tool_call"]["name"] == "lookup_skill_data"
+            if "tool_result" in evt:
+                saw_tool_result = True
+                assert evt["tool_result"]["name"] == "lookup_skill_data"
+                assert evt["tool_result"].get("ok") is True
+                result = evt["tool_result"].get("result", {})
+                assert result.get("ok") is True
+                assert result.get("name") == "Blizzard"
+            if evt.get("done") is True:
+                break
+
+        assert saw_tool_call
+        assert saw_tool_result

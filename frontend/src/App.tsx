@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard/Dashboard'
 import { SearchView } from './components/Search/SearchView'
 import { ChatPanel } from './components/Chat/ChatPanel'
 import { SetsView } from './components/Sets/SetsView'
+import { BuildPlanner } from './components/Planner/BuildPlanner'
 
 function App() {
   const { view, character, stashTabs } = useAppStore()
@@ -56,6 +57,7 @@ function App() {
         </div>
       )}
       {view === 'sets' && <SetsView />}
+      {view === 'planner' && <BuildPlanner />}
     </AppShell>
   )
 }

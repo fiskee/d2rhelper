@@ -247,6 +247,55 @@ export interface SetData {
   items: SetItemData[]
 }
 
+export interface SkillLookupResult {
+  name: string
+  class_code: string
+  required_level: number
+  tree: {
+    tab_index: number
+    row: number
+    column: number
+  }
+  prerequisites: string[]
+  description: string
+  damage_formula: {
+    emin: string
+    emax: string
+    edmgsympercalc: string
+    hitshift: string
+  }
+  synergy_sources: Array<{ skill: string; expression: string }>
+}
+
+export interface ClassSkillsResult {
+  class_code: string
+  total_skills: number
+  skills: Array<{
+    name: string
+    required_level: number
+    tree: { tab_index: number; row: number; column: number }
+    prerequisites: string[]
+  }>
+}
+
+export interface SkillDamageResult {
+  ok: boolean
+  skill_name: string
+  class_code: string
+  skill_level: number
+  plus_skills: number
+  effective_skill_level: number
+  base_damage_min: number
+  base_damage_max: number
+  synergy_bonus_pct: number
+  enemy_resist_initial: number
+  enemy_resist_after_mods: number
+  final_damage_min: number
+  final_damage_max: number
+  assumptions: string[]
+  issues: Array<{ code: string; message: string; context?: Record<string, unknown> }>
+}
+
 export interface PlayerSetProgress {
   setName: string
   owned: number

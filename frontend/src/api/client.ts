@@ -1,4 +1,12 @@
-import type { CharactersResponse, ParseResponse, SearchResult, SetData } from '../types'
+import type {
+  CharactersResponse,
+  ClassSkillsResult,
+  ParseResponse,
+  SearchResult,
+  SetData,
+  SkillDamageResult,
+  SkillLookupResult,
+} from '../types'
 
 const API_BASE = '/api'
 
@@ -190,4 +198,40 @@ export async function lookupItem(name: string, itemType?: string): Promise<DBAtt
   }
   itemLookupCache.set(key, data)
   return data
+}
+
+export async function lookupSkill(name: string, className?: string): Promise<SkillLookupResult | null> {
+  const params = new URLSearchParams({ name })
+  if (className) params.set('class_name', className)
+  const res = await fetch(`${API_BASE}/skills/lookup?${params}`)
+  if (!res.ok) return null
+  const data = await res.json()
+  return data || null
+}
+
+export async function listClassSkills(className: string): Promise<ClassSkillsResult | null> {
+  const params = new URLSearchParams({ class_name: className })
+  const res = await fetch(`${API_BASE}/skills/class?${params}`)
+  if (!res.ok) return null
+  const data = await res.json()
+  return data || null
+}
+
+export async function calculateSkillDamage(payload: {
+  class_name: string
+  skill_name: string
+  skill_level: number
+  plus_skills?: number
+  synergy_levels?: Record<string, number>
+  enemy_resist?: number
+  sunder?: boolean
+}): Promise<SkillDamageResult | null> {
+  const res = await fetch(`${API_BASE}/skills/damage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) return null
+  const data = await res.json()
+  return data || null
 }

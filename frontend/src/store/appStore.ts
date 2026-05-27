@@ -5,7 +5,7 @@ import type { StateStorage } from 'zustand/middleware'
 import { parseCharacter, listCharacters, fetchSets, listChats, deleteChatApi } from '../api/client'
 import type { Chat, ChatMessage, CharacterInfo, D2Character, ParsedItem, SetData, SharedStashTab } from '../types'
 
-type View = 'dashboard' | 'search' | 'chat' | 'sets'
+type View = 'dashboard' | 'search' | 'chat' | 'sets' | 'planner'
 
 export interface TaggedItem {
   item: ParsedItem

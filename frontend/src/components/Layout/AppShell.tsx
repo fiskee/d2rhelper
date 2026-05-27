@@ -4,12 +4,13 @@ import { useAppStore } from '../../store/appStore'
 import { CharacterPicker } from './CharacterPicker'
 import { ChatSidebar } from '../Chat/ChatSidebar'
 
-type View = 'dashboard' | 'search' | 'chat' | 'sets'
+type View = 'dashboard' | 'search' | 'chat' | 'sets' | 'planner'
 
 const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: '◆' },
   { view: 'search', label: 'Search', icon: '⌕' },
   { view: 'sets', label: 'Sets', icon: '◈' },
+  { view: 'planner', label: 'Planner', icon: '✦' },
   { view: 'chat', label: 'Chat', icon: '💬' },
 ]
 

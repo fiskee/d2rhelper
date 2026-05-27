@@ -15,7 +15,7 @@ const NAV_ITEMS: { view: View; label: string; icon: string }[] = [
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { view, setView, character, loading, error, createChat } = useAppStore()
+  const { view, setView, character, loading, error, createChat, activeChatId } = useAppStore()
   const [warningsOpen, setWarningsOpen] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
@@ -53,7 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button
               key={v}
               onClick={() => {
-                if (v === 'chat') {
+                if (v === 'chat' && !activeChatId) {
                   createChat()
                 }
                 setView(v)

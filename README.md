@@ -26,6 +26,45 @@ uv run d2rhelper
 
 Open **http://127.0.0.1:8000** in your browser.
 
+## Development mode
+
+If you want hot-reload for backend and frontend while coding, run them in two terminals from the repo root.
+
+1) Backend API (reload on Python changes):
+
+```bash
+uv run d2rhelper --reload
+```
+
+2) Frontend Vite dev server (reload on React/TS changes):
+
+```bash
+npm --prefix frontend run dev
+```
+
+Then open **http://127.0.0.1:5173**.
+
+The frontend dev server proxies `/api` and websocket chat traffic to the backend on port `8000`.
+
+### Dev prerequisites (manual setup)
+
+If you did not run `scripts/setup.sh`, install dependencies manually:
+
+```bash
+uv sync
+npm --prefix frontend install
+```
+
+You still need a `.env` with `GEMINI_API_KEY` for chat features.
+
+### Useful checks
+
+```bash
+uv run ruff check src tests
+uv run pytest -q
+npm --prefix frontend run build
+```
+
 ## Features
 
 - **Dashboard** - character stats, 12-slot equipment grid, mercenary gear, inventory, belt, personal stash, and shared stash tabs
